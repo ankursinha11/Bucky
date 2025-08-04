@@ -1,0 +1,33 @@
+Mapping Document (Object)
+{
+  "mode": "collaborative",
+  "sql_analysis": {
+    "source_files": [
+      "test_sql_sample.sql"
+    ],
+    "total_files": 1,
+    "analysis_complete": true
+  },
+  "ctm_mapping": {
+    "document": "Based on the SQL code provided, 
+    here is the proposed CTM mapping document:\n\n🧾 
+    SECTION 1: FEED METADATA\n\nFEED NAME: 
+    Customer Order Summary\nOWNERS: UNKNOWN\n\nFILE
+     VALIDATION SCENARIOS TO HANDLE: \nCOMBINE FILES: No\nPARSE HEADER:
+      No \nMULTIPLE FILES: No\nADDITIONAL RECORDS: No\nPARSE TRAILER: No\n\n🧾 
+      SECTION 2: RECORD VALIDATION\n\nValidate only active customers ar
+      e included based on `c.is_active = 1`\nValidate only completed orders since 2023-01-01 are included based on `o.order_date >= '2023-01-01' AND o.status = 'completed'`\nValidate minimum total order amount per customer > 100 based on `HAVING SUM(o.total_amount) > 100`\n\n🧾 SECTION 3: TRANSFORMATION MAPPING TABLE\n\n| TARGET TABLE | TARGET ATTRIBUTE | TARGET TYPE | SEQUENCE | RULE | SOURCE COLUMN | SOURCE TABLE | COMMENTS |\n|--------------|------------------|-------------|----------|------|---------------|--------------|----------|\n| customer_order_summary | customer_id | integer | 1 | direct map | c.customer_id | customers c | Primary key |\n| customer_order_summary | customer_name | varchar | 2 | direct map | c.customer_name | customers c |  |  \n| customer_order_summary | email | varchar | 3 | direct map | c.email | customers c |  |\n| customer_order_summary | created_date | date | 4 | direct map | c.created_date | customers c |  |\n| customer_order_summary | order_id | integer | 5 | direct map | o.order_id | orders o | Foreign key to orders |\n| customer_order_summary | order_date | date | 6 | direct map | o.order_date | orders o |  |\n| customer_order_summary | total_amount | decimal | 7 | direct map | o.total_amount | orders o |  |  \n| customer_order_summary | customer_segment | varchar | 8 | CASE logic | CASE WHEN o.total_amount > 1000 THEN 'High Value' WHEN o.total_amount > 500 THEN 'Medium Value' ELSE 'Low Value' END | orders o |  |\n| customer_order_summary | days_since_registration | integer | 9 | Datediff function | DATE_DIFF(o.order_date, c.created_date) | orders o, customers c | Calculates days between order date and customer creation date |\n| customer_order_summary | total_customer_spend | decimal | 10 | Window function | SUM(o.total_amount) OVER (PARTITION BY c.customer_id) | orders o | Sums total spend for each customer |\n| customer_order_summary | order_sequence | integer | 11 | Window function | ROW_NUMBER() OVER (PARTITION BY c.customer_id ORDER BY o.order_date) | orders o | Sequential order number for each customer |\n\n🧾 JOIN SECTION\n\n| JOIN TYPE | TABLE 1 | TABLE 2 | CONDITION |  \n|------------|--------------|---------------|----------------|\n| INNER JOIN | customers c | orders o | c.customer_id = o.customer_id |\n| LEFT JOIN | customers c | customer_preferences cp | c.customer_id = cp.customer_id |\n\nPlease let me know if you need any clarification or have additional requirements for the CTM mapping document. I can update the logic based on your feedback.",
+    "sections": [
+      "feed_metadata",
+      "record_validation",
+      "transformation_mapping",
+      "join_section"
+    ],
+    "status": "completed"
+  },
+  "user_interaction": {
+    "user_id": "user-123",
+    "mode": "collaborative",
+    "requires_clarification": false
+  }
+}
