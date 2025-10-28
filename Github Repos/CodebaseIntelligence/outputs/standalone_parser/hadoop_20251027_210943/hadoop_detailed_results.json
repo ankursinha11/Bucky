@@ -1,0 +1,2307 @@
+{
+  "processes": [
+    {
+      "id": "hadoop_coordinator_coordinator",
+      "name": "coordinator",
+      "system": "hadoop",
+      "file_path": "app-data-ingestion/coordinators/coordinator.xml",
+      "description": null,
+      "component_count": 0,
+      "input_sources": [],
+      "output_targets": [],
+      "tables_involved": []
+    },
+    {
+      "id": "hadoop_coordinator_chc_xref_coordinator",
+      "name": "chc_xref_coordinator",
+      "system": "hadoop",
+      "file_path": "app-data-ingestion/coordinators/chc_xref_coordinator.xml",
+      "description": null,
+      "component_count": 0,
+      "input_sources": [],
+      "output_targets": [],
+      "tables_involved": []
+    },
+    {
+      "id": "hadoop_coordinator_patientaccts_coordinator",
+      "name": "patientaccts_coordinator",
+      "system": "hadoop",
+      "file_path": "app-data-ingestion/coordinators/patientaccts_coordinator.xml",
+      "description": null,
+      "component_count": 0,
+      "input_sources": [],
+      "output_targets": [],
+      "tables_involved": []
+    },
+    {
+      "id": "hadoop_coordinator_chc_ingestion_coordinator",
+      "name": "chc_ingestion_coordinator",
+      "system": "hadoop",
+      "file_path": "app-data-ingestion/coordinators/chc_ingestion_coordinator.xml",
+      "description": null,
+      "component_count": 0,
+      "input_sources": [],
+      "output_targets": [],
+      "tables_involved": []
+    },
+    {
+      "id": "hadoop_coordinator_qhash_ingest_coordinator",
+      "name": "qhash_ingest_coordinator",
+      "system": "hadoop",
+      "file_path": "app-data-ingestion/coordinators/qhash_ingest_coordinator.xml",
+      "description": null,
+      "component_count": 0,
+      "input_sources": [],
+      "output_targets": [],
+      "tables_involved": []
+    },
+    {
+      "id": "hadoop_coordinator_sdob_ingest_coordinator",
+      "name": "sdob_ingest_coordinator",
+      "system": "hadoop",
+      "file_path": "app-data-ingestion/coordinators/sdob_ingest_coordinator.xml",
+      "description": null,
+      "component_count": 0,
+      "input_sources": [],
+      "output_targets": [],
+      "tables_involved": []
+    },
+    {
+      "id": "hadoop_coordinator_big_tables_coordinator",
+      "name": "big_tables_coordinator",
+      "system": "hadoop",
+      "file_path": "app-data-ingestion/coordinators/big_tables_coordinator.xml",
+      "description": null,
+      "component_count": 0,
+      "input_sources": [],
+      "output_targets": [],
+      "tables_involved": []
+    },
+    {
+      "id": "hadoop_coordinator_chc_idassignment_coordinator",
+      "name": "chc_idassignment_coordinator",
+      "system": "hadoop",
+      "file_path": "app-data-ingestion/coordinators/chc_idassignment_coordinator.xml",
+      "description": null,
+      "component_count": 0,
+      "input_sources": [],
+      "output_targets": [],
+      "tables_involved": []
+    },
+    {
+      "id": "hadoop_coordinator_sqoop_fnf_coordinator",
+      "name": "sqoop_fnf_coordinator",
+      "system": "hadoop",
+      "file_path": "app-data-ingestion/coordinators/sqoop_fnf_coordinator.xml",
+      "description": null,
+      "component_count": 0,
+      "input_sources": [],
+      "output_targets": [],
+      "tables_involved": []
+    },
+    {
+      "id": "hadoop_coordinator_audit_report_coordinator",
+      "name": "audit_report_coordinator",
+      "system": "hadoop",
+      "file_path": "app-data-ingestion/coordinators/audit_report_coordinator.xml",
+      "description": null,
+      "component_count": 0,
+      "input_sources": [],
+      "output_targets": [],
+      "tables_involved": []
+    },
+    {
+      "id": "hadoop_coordinator_swift_coordinator",
+      "name": "swift_coordinator",
+      "system": "hadoop",
+      "file_path": "app-data-ingestion/coordinators/swift_coordinator.xml",
+      "description": null,
+      "component_count": 0,
+      "input_sources": [],
+      "output_targets": [],
+      "tables_involved": []
+    },
+    {
+      "id": "hadoop_coordinator_bestopp_coordinator",
+      "name": "bestopp_coordinator",
+      "system": "hadoop",
+      "file_path": "app-data-ingestion/coordinators/bestopp_coordinator.xml",
+      "description": null,
+      "component_count": 0,
+      "input_sources": [],
+      "output_targets": [],
+      "tables_involved": []
+    },
+    {
+      "id": "hadoop_coordinator_foundcoverage_coordinator",
+      "name": "foundcoverage_coordinator",
+      "system": "hadoop",
+      "file_path": "app-data-ingestion/coordinators/foundcoverage_coordinator.xml",
+      "description": null,
+      "component_count": 0,
+      "input_sources": [],
+      "output_targets": [],
+      "tables_involved": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc",
+      "name": "ingest_chc",
+      "system": "hadoop",
+      "file_path": "app-data-ingestion/workflows/ingest_chc",
+      "description": "Hadoop workflow: ingest_chc",
+      "component_count": 47,
+      "input_sources": [
+        "maprfs://cust.analytics.hca/hcedata/user/phd9appl/CDD/publish/escan/data/foundcoverage/current/20991231/",
+        "$input_dir"
+      ],
+      "output_targets": [
+        "$output_dir",
+        "maprfs://cust.analytics.hca/hcedata/user/phd9appl/CDD/publish/escan/data/foundcoverage/current/20991231/",
+        "$outputDebugBaseDir/allRecsAllFields/$bcdate"
+      ],
+      "tables_involved": [
+        "trans",
+        "patientacctxpermid",
+        "patientaccts",
+        "perm",
+        "tbl2",
+        "dateutil",
+        "permid",
+        "pyspark",
+        "existing",
+        "final_output",
+        "trans_x_publish_x_perm_x_gmrn",
+        "im_patientacctxpermid",
+        "gmrn",
+        "dup_permid",
+        "with",
+        "cond",
+        "bcs",
+        "patientacctxpolicyid_grp",
+        "eid_mapping",
+        "based",
+        "policyidlist",
+        "globalmrndemographics",
+        "df_transaction",
+        "trans_x_publish_x_perm",
+        "gmrnxmrnlist",
+        "raw",
+        "output",
+        "FC",
+        "gmrnid",
+        "globalmrnxpacct",
+        "mingroupedkeys",
+        "trans_x_publish",
+        "hm_permid",
+        "hhview",
+        "groupedkeys",
+        "tbl1",
+        "df_publish",
+        "collections",
+        "coverageid",
+        "fc",
+        "permid2",
+        "publish",
+        "criteria",
+        "hosp_mapping",
+        "dup_gmrnid",
+        "to",
+        "data",
+        "delta",
+        "patientacctxpermid_base"
+      ]
+    },
+    {
+      "id": "hadoop_workflow_ingest_all",
+      "name": "ingest_all",
+      "system": "hadoop",
+      "file_path": "app-data-ingestion/workflows/ingest_all",
+      "description": "Hadoop workflow: ingest_all",
+      "component_count": 12,
+      "input_sources": [],
+      "output_targets": [],
+      "tables_involved": [
+        "patientacctxpermid",
+        "mrnlist",
+        "policyidlist",
+        "patientaccts",
+        "permid",
+        "globalmrndemographics",
+        "dateutil",
+        "pyspark",
+        "globalmrnxpacct",
+        "permid2",
+        "gmrnxmrnlist",
+        "hhpermid",
+        "patientacctscodes",
+        "hhview",
+        "hospinsurancecodes",
+        "pacctpolicy",
+        "pacctpolicyid",
+        "to"
+      ]
+    },
+    {
+      "id": "hadoop_workflow_ingest_table",
+      "name": "ingest_table",
+      "system": "hadoop",
+      "file_path": "app-data-ingestion/workflows/ingest_table",
+      "description": "Hadoop workflow: ingest_table",
+      "component_count": 49,
+      "input_sources": [
+        "/workspace/hcedata/user/phd9uat/chc/input/bdf/accenture/aetna/20200913T13/permIdPatientAcctId/",
+        "/workspace/hcedata/user/phd9uat/chc/output/tobcs_pipe/20211011T11/",
+        "$inputPostBDFDirRejects",
+        "/workspace/hceleads/user/phd9uat/leadrepo/data/cooked/chc_lr_transaction/",
+        "/hcedata/user/phd9appl/CDD/publish/escan/data/hospitalpurge/current/20991231/",
+        "/workspace/hcedata/user/phd9uat/chc/publish/medicalcarrier/accenture/aetna/",
+        "maprfs://cust.analytics.hca/hcecdd/user/phd9appl/CDD/input/bdf/chc_accenture_aetna/20211011T11/J131044_D20211012_S439773_TUIH01_cbeMatchAppend.dat",
+        "/workspace/hceleads/user/phd9uat/leadrepo/data/toserve/chc_import/20211011T11/",
+        "$inputPostBDFDirNoHits"
+      ],
+      "output_targets": [
+        "/workspace/hcedata/user/phd9uat/chc/input/bdf/accenture/aetna/20200913T13/permIdPatientAcctId/",
+        "/workspace/hcedata/user/phd9uat/chc/input/bdf/accenture/aetna/20211011T11/allDistinctRecs/",
+        "/workspace/hcedata/user/phd9uat/tmp/medicalcarrier/es_nohits/",
+        "/workspace/hcedata/user/phd9uat/tmp/medicalcarrier/nopermid/",
+        "/workspace/hcedata/user/phd9uat/tmp/medicalcarrier/es_rejects/",
+        "/workspace/hceleads/user/phd9uat/leadrepo/data/cooked/chc_lr_transaction/",
+        "/hcedata/user/phd9appl/CDD/publish/escan/data/hospitalpurge/current/20991231/",
+        "/workspace/hcedata/user/phd9uat/chc/publish/medicalcarrier/accenture/aetna/",
+        "/workspace/hcedata/user/phd9uat/chc/input/bdf/accenture/aetna/20211011T11/permIdPatientAcctId/",
+        "/workspace/hceleads/user/phd9uat/leadrepo/data/toserve/chc_import/20211011T11/",
+        "/workspace/hcedata/user/phd9uat/chc/output/tobcs_fixed/20211011T11",
+        "$outputDebugBaseDir/allRecsAllFields/$bcdate"
+      ],
+      "tables_involved": [
+        "fc_data_ingestion",
+        "lp",
+        "pyspark",
+        "bdf_download_data",
+        "vw_df_delta",
+        "df_data",
+        "bcs",
+        "inc_",
+        "es_fc_import",
+        "ld",
+        "ie_prebdf_data",
+        "IF",
+        "ie_pre_bdf_data",
+        "df_delta",
+        "raw",
+        "output",
+        "bdf_data",
+        "gmrn_data",
+        "lv",
+        "ie_data",
+        "df_raw",
+        "ie_post_bdf_data",
+        "lsb",
+        "fc_data",
+        "di_data",
+        "escan",
+        "kc_data",
+        "cdd",
+        "hospitalpurge",
+        "pprint",
+        "lr",
+        "pa_data",
+        "data",
+        "delta"
+      ]
+    }
+  ],
+  "components": [
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_merge_policyid_globalmrn",
+      "name": "merge_policyid_globalmrn",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/merge_policyid_globalmrn.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "pyspark"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_chc_check_xref",
+      "name": "chc_check_xref",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/chc_check_xref.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "pyspark"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_part03_merge_soundex_globalmrn",
+      "name": "part03_merge_soundex_globalmrn",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/part03_merge_soundex_globalmrn.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "pyspark"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_gmrndemo_update",
+      "name": "gmrndemo_update",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/gmrndemo_update.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "cond",
+        "pyspark",
+        "existing",
+        "delta"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_chc_spark_jdbc_push",
+      "name": "chc_spark_jdbc_push",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/chc_spark_jdbc_push.py",
+      "input_datasets": [
+        "maprfs://cust.analytics.hca/hcedata/user/phd9appl/CDD/publish/escan/data/foundcoverage/current/20991231/"
+      ],
+      "output_datasets": [
+        "maprfs://cust.analytics.hca/hcedata/user/phd9appl/CDD/publish/escan/data/foundcoverage/current/20991231/"
+      ],
+      "tables_read": [
+        "coverageid",
+        "trans",
+        "perm",
+        "FC",
+        "trans_x_publish_x_perm",
+        "pyspark",
+        "final_output",
+        "fc",
+        "trans_x_publish_x_perm_x_gmrn",
+        "publish",
+        "trans_x_publish",
+        "gmrn",
+        "dup_gmrnid",
+        "dup_permid",
+        "delta"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_NEW_chc_append_to_transaction",
+      "name": "NEW_chc_append_to_transaction",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/NEW_chc_append_to_transaction.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "pyspark",
+        "data",
+        "output"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_chc_xref_update_gmrnid",
+      "name": "chc_xref_update_gmrnid",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/chc_xref_update_gmrnid.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "trans",
+        "pyspark",
+        "gmrnid",
+        "publish",
+        "delta"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_NEW_chc_generate_bcs_file_csv",
+      "name": "NEW_chc_generate_bcs_file_csv",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/NEW_chc_generate_bcs_file_csv.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "trans",
+        "pyspark",
+        "data"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_merge_soundex_globalmrn",
+      "name": "merge_soundex_globalmrn",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/merge_soundex_globalmrn.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "pyspark"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_gmrn_create_graph_data",
+      "name": "gmrn_create_graph_data",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/gmrn_create_graph_data.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "dateutil",
+        "tbl2",
+        "pyspark",
+        "tbl1"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_NEW_chc_validated",
+      "name": "NEW_chc_validated",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/NEW_chc_validated.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "patientaccts",
+        "df_transaction",
+        "pyspark",
+        "im_patientacctxpermid",
+        "hm_permid",
+        "patientacctxpolicyid_grp",
+        "to",
+        "df_publish",
+        "data",
+        "delta",
+        "patientacctxpermid_base"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_NEW_chc_xref_update_permid",
+      "name": "NEW_chc_xref_update_permid",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/NEW_chc_xref_update_permid.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "permid",
+        "pyspark",
+        "raw",
+        "bcs",
+        "delta"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_merge_mcr_globalmrn",
+      "name": "merge_mcr_globalmrn",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/merge_mcr_globalmrn.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "pyspark",
+        "based"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_merge_pid_globalmrn",
+      "name": "merge_pid_globalmrn",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/merge_pid_globalmrn.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "collections",
+        "pyspark"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_chc_parse_and_publish_cda",
+      "name": "chc_parse_and_publish_cda",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/chc_parse_and_publish_cda.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "hosp_mapping",
+        "eid_mapping",
+        "pyspark",
+        "data"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_part02_merge_soundex_globalmrn",
+      "name": "part02_merge_soundex_globalmrn",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/part02_merge_soundex_globalmrn.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "pyspark"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_merge_simssn_globalmrn",
+      "name": "merge_simssn_globalmrn",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/merge_simssn_globalmrn.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "criteria",
+        "pyspark"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_merge_antissn_globalmrn",
+      "name": "merge_antissn_globalmrn",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/merge_antissn_globalmrn.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "criteria",
+        "pyspark"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_chc_check_bcs_file_rx",
+      "name": "chc_check_bcs_file_rx",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/chc_check_bcs_file_rx.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "pyspark"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_NEW_chc_xref_update_gmrnid",
+      "name": "NEW_chc_xref_update_gmrnid",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/NEW_chc_xref_update_gmrnid.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "trans",
+        "pyspark",
+        "gmrnid",
+        "publish",
+        "delta"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_match_util",
+      "name": "match_util",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/match_util.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "pyspark"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_NEW_chc_parse_and_publish_cda",
+      "name": "NEW_chc_parse_and_publish_cda",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/NEW_chc_parse_and_publish_cda.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "hosp_mapping",
+        "eid_mapping",
+        "pyspark",
+        "data"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_gmrn_process_graph_data",
+      "name": "gmrn_process_graph_data",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/gmrn_process_graph_data.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "with",
+        "pyspark"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_chc_check_bcs_file_tx",
+      "name": "chc_check_bcs_file_tx",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/chc_check_bcs_file_tx.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "pyspark"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_chc_generate_bcs_file_csv",
+      "name": "chc_generate_bcs_file_csv",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/chc_generate_bcs_file_csv.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "pyspark",
+        "data"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_chc_notification_engine",
+      "name": "chc_notification_engine",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/chc_notification_engine.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "dateutil",
+        "pyspark"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_chc_parse_and_publish",
+      "name": "chc_parse_and_publish",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/chc_parse_and_publish.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "pyspark",
+        "data"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_NEW_chc_gmrn_validated",
+      "name": "NEW_chc_gmrn_validated",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/NEW_chc_gmrn_validated.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "patientacctxpermid",
+        "policyidlist",
+        "permid",
+        "globalmrndemographics",
+        "pyspark",
+        "globalmrnxpacct",
+        "permid2",
+        "gmrnxmrnlist",
+        "hhview",
+        "delta"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_chc_check_gmrn_file_tx",
+      "name": "chc_check_gmrn_file_tx",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/chc_check_gmrn_file_tx.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "pyspark"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_merge_ssn_globalmrn",
+      "name": "merge_ssn_globalmrn",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/merge_ssn_globalmrn.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "collections",
+        "pyspark"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_chc_append_to_transaction",
+      "name": "chc_append_to_transaction",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/chc_append_to_transaction.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "pyspark",
+        "data"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_chc_xref_update_permid",
+      "name": "chc_xref_update_permid",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/chc_xref_update_permid.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "permid",
+        "pyspark",
+        "raw",
+        "bcs",
+        "delta"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_chc_gmrn_validated",
+      "name": "chc_gmrn_validated",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/chc_gmrn_validated.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "patientacctxpermid",
+        "policyidlist",
+        "permid",
+        "globalmrndemographics",
+        "pyspark",
+        "globalmrnxpacct",
+        "permid2",
+        "gmrnxmrnlist",
+        "hhview",
+        "delta"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_merge_mcd_globalmrn",
+      "name": "merge_mcd_globalmrn",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/merge_mcd_globalmrn.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "pyspark",
+        "based"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_merge_decisions",
+      "name": "merge_decisions",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/merge_decisions.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "groupedkeys",
+        "mingroupedkeys",
+        "pyspark"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_part01_merge_soundex_globalmrn",
+      "name": "part01_merge_soundex_globalmrn",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/part01_merge_soundex_globalmrn.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "pyspark"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_chc_check_gmrn_file_rx",
+      "name": "chc_check_gmrn_file_rx",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/chc_check_gmrn_file_rx.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "pyspark"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_spark_chc_validated",
+      "name": "chc_validated",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/spark/chc_validated.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "patientaccts",
+        "df_transaction",
+        "pyspark",
+        "im_patientacctxpermid",
+        "hm_permid",
+        "patientacctxpolicyid_grp",
+        "to",
+        "df_publish",
+        "data",
+        "delta",
+        "patientacctxpermid_base"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_pig_chc_parse_bcs_file_fixedwidth",
+      "name": "chc_parse_bcs_file_fixedwidth",
+      "component_type": "Pig_Script",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/pig/chc_parse_bcs_file_fixedwidth.pig",
+      "input_datasets": [
+        "$input_dir"
+      ],
+      "output_datasets": [
+        "$output_dir",
+        "$outputDebugBaseDir/allRecsAllFields/$bcdate"
+      ],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_pig_chc_generate_bcs_file_fixedwidth",
+      "name": "chc_generate_bcs_file_fixedwidth",
+      "component_type": "Pig_Script",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/pig/chc_generate_bcs_file_fixedwidth.pig",
+      "input_datasets": [
+        "$input_dir"
+      ],
+      "output_datasets": [
+        "$output_dir"
+      ],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_pig_chc_parse_xref_permid",
+      "name": "chc_parse_xref_permid",
+      "component_type": "Pig_Script",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/pig/chc_parse_xref_permid.pig",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_shell_chc_xref_janitor",
+      "name": "chc_xref_janitor",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/shell/chc_xref_janitor.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_shell_temp_data_creation",
+      "name": "temp_data_creation",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/shell/temp_data_creation.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_shell_chc_download_from_bcs",
+      "name": "chc_download_from_bcs",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/shell/chc_download_from_bcs.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_shell_process_chc_files_download",
+      "name": "process_chc_files_download",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/shell/process_chc_files_download.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_shell_read_wf_id",
+      "name": "read_wf_id",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/shell/read_wf_id.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_chc_shell_chc_upload_to_bcs",
+      "name": "chc_upload_to_bcs",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_chc",
+      "file_path": "app-data-ingestion/workflows/ingest_chc/shell/chc_upload_to_bcs.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_all_spark_gmrn_validated",
+      "name": "gmrn_validated",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_all",
+      "file_path": "app-data-ingestion/workflows/ingest_all/spark/gmrn_validated.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "patientacctxpermid",
+        "policyidlist",
+        "permid",
+        "globalmrndemographics",
+        "pyspark",
+        "globalmrnxpacct",
+        "permid2",
+        "gmrnxmrnlist",
+        "hhview"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_all_spark_patientacct_validated",
+      "name": "patientacct_validated",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_all",
+      "file_path": "app-data-ingestion/workflows/ingest_all/spark/patientacct_validated.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "patientacctxpermid",
+        "mrnlist",
+        "patientaccts",
+        "permid",
+        "pyspark",
+        "hhpermid",
+        "patientacctscodes",
+        "pacctpolicyid",
+        "hhview",
+        "hospinsurancecodes",
+        "pacctpolicy",
+        "to"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_all_spark_tu_data_quality",
+      "name": "tu_data_quality",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_all",
+      "file_path": "app-data-ingestion/workflows/ingest_all/spark/tu_data_quality.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "dateutil",
+        "pyspark"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_all_shell_publish_data_validated",
+      "name": "publish_data_validated",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_all",
+      "file_path": "app-data-ingestion/workflows/ingest_all/shell/publish_data_validated.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_all_shell_create_notification",
+      "name": "create_notification",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_all",
+      "file_path": "app-data-ingestion/workflows/ingest_all/shell/create_notification.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_all_shell_checkfornotification",
+      "name": "checkfornotification",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_all",
+      "file_path": "app-data-ingestion/workflows/ingest_all/shell/checkfornotification.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_all_shell_publish_gmrn_validated",
+      "name": "publish_gmrn_validated",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_all",
+      "file_path": "app-data-ingestion/workflows/ingest_all/shell/publish_gmrn_validated.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_all_shell_publish_patientacct_validated",
+      "name": "publish_patientacct_validated",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_all",
+      "file_path": "app-data-ingestion/workflows/ingest_all/shell/publish_patientacct_validated.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_all_shell_check_ghic",
+      "name": "check_ghic",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_all",
+      "file_path": "app-data-ingestion/workflows/ingest_all/shell/check_ghic.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_all_shell_get_datetime",
+      "name": "get_datetime",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_all",
+      "file_path": "app-data-ingestion/workflows/ingest_all/shell/get_datetime.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_all_shell_check_gdemo",
+      "name": "check_gdemo",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_all",
+      "file_path": "app-data-ingestion/workflows/ingest_all/shell/check_gdemo.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_all_shell_combine_sqoop_files",
+      "name": "combine_sqoop_files",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_all",
+      "file_path": "app-data-ingestion/workflows/ingest_all/shell/combine_sqoop_files.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_spark_kc_flow_job_status_report",
+      "name": "kc_flow_job_status_report",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/spark/kc_flow_job_status_report.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "pyspark",
+        "ld",
+        "kc_data",
+        "data",
+        "output"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_spark_logfailure",
+      "name": "logfailure",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/spark/logfailure.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "pyspark"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_spark_chc_medical_carrier_publish",
+      "name": "chc_medical_carrier_publish",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/spark/chc_medical_carrier_publish.py",
+      "input_datasets": [
+        "/workspace/hceleads/user/phd9uat/leadrepo/data/toserve/chc_import/20211011T11/",
+        "/workspace/hcedata/user/phd9uat/chc/publish/medicalcarrier/accenture/aetna/",
+        "/workspace/hceleads/user/phd9uat/leadrepo/data/cooked/chc_lr_transaction/"
+      ],
+      "output_datasets": [
+        "/workspace/hceleads/user/phd9uat/leadrepo/data/toserve/chc_import/20211011T11/",
+        "/workspace/hcedata/user/phd9uat/chc/publish/medicalcarrier/accenture/aetna/",
+        "/workspace/hceleads/user/phd9uat/leadrepo/data/cooked/chc_lr_transaction/"
+      ],
+      "tables_read": [
+        "pyspark",
+        "data"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_spark_schema_util",
+      "name": "schema_util",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/spark/schema_util.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "pyspark"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_spark_01_reconcile_table_delta",
+      "name": "01_reconcile_table_delta",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/spark/01_reconcile_table_delta.py",
+      "input_datasets": [
+        "/hcedata/user/phd9appl/CDD/publish/escan/data/hospitalpurge/current/20991231/"
+      ],
+      "output_datasets": [
+        "/hcedata/user/phd9appl/CDD/publish/escan/data/hospitalpurge/current/20991231/"
+      ],
+      "tables_read": [
+        "pyspark",
+        "vw_df_delta",
+        "hospitalpurge",
+        "df_delta",
+        "delta"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_spark_monitor",
+      "name": "monitor",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/spark/monitor.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "pyspark",
+        "data"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_spark_gmrn_hic_flow_job_status_report",
+      "name": "gmrn_hic_flow_job_status_report",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/spark/gmrn_hic_flow_job_status_report.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "gmrn_data",
+        "pa_data",
+        "pyspark",
+        "output"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_spark_spark_jdbc_extract_fnf",
+      "name": "spark_jdbc_extract_fnf",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/spark/spark_jdbc_extract_fnf.py",
+      "input_datasets": [
+        "/hcedata/user/phd9appl/CDD/publish/escan/data/hospitalpurge/current/20991231/"
+      ],
+      "output_datasets": [
+        "/hcedata/user/phd9appl/CDD/publish/escan/data/hospitalpurge/current/20991231/"
+      ],
+      "tables_read": [
+        "df_data",
+        "pyspark",
+        "hospitalpurge",
+        "escan"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_spark_spark_jdbc_extract_incremental",
+      "name": "spark_jdbc_extract_incremental",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/spark/spark_jdbc_extract_incremental.py",
+      "input_datasets": [
+        "/hcedata/user/phd9appl/CDD/publish/escan/data/hospitalpurge/current/20991231/"
+      ],
+      "output_datasets": [
+        "/hcedata/user/phd9appl/CDD/publish/escan/data/hospitalpurge/current/20991231/"
+      ],
+      "tables_read": [
+        "df_delta",
+        "pyspark",
+        "hospitalpurge"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_spark_ingestion_wf_report",
+      "name": "ingestion_wf_report",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/spark/ingestion_wf_report.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "pyspark"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_spark_ich_flow_job_status_report",
+      "name": "ich_flow_job_status_report",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/spark/ich_flow_job_status_report.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "lp",
+        "ie_data",
+        "pyspark",
+        "bdf_download_data",
+        "ie_post_bdf_data",
+        "lsb",
+        "ie_prebdf_data",
+        "ie_pre_bdf_data",
+        "lr",
+        "output"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_spark_fetch_last_value",
+      "name": "fetch_last_value",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/spark/fetch_last_value.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "pyspark"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_spark_fc_flow_job_status_report",
+      "name": "fc_flow_job_status_report",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/spark/fc_flow_job_status_report.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "fc_data_ingestion",
+        "es_fc_import",
+        "lp",
+        "pyspark",
+        "fc_data",
+        "lsb",
+        "lr",
+        "output"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_spark_es_flow_job_status_report",
+      "name": "es_flow_job_status_report",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/spark/es_flow_job_status_report.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "bdf_data",
+        "lp",
+        "pyspark",
+        "bdf_download_data",
+        "lsb",
+        "lr",
+        "data",
+        "cdd",
+        "output"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_spark_reconcile_table_delta",
+      "name": "reconcile_table_delta",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/spark/reconcile_table_delta.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "vw_df_delta",
+        "pyspark",
+        "delta"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_spark_chc_generate_xref_permid",
+      "name": "chc_generate_xref_permid",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/spark/chc_generate_xref_permid.py",
+      "input_datasets": [
+        "/workspace/hcedata/user/phd9uat/chc/input/bdf/accenture/aetna/20200913T13/permIdPatientAcctId/",
+        "/workspace/hcedata/user/phd9uat/chc/publish/medicalcarrier/accenture/aetna/"
+      ],
+      "output_datasets": [
+        "/workspace/hcedata/user/phd9uat/chc/input/bdf/accenture/aetna/20200913T13/permIdPatientAcctId/",
+        "/workspace/hcedata/user/phd9uat/chc/publish/medicalcarrier/accenture/aetna/"
+      ],
+      "tables_read": [
+        "bcs",
+        "pyspark",
+        "raw"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_spark_24hrmonitor",
+      "name": "24hrmonitor",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/spark/24hrmonitor.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "pprint",
+        "pyspark"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_spark_02_reconcile_table_delta",
+      "name": "02_reconcile_table_delta",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/spark/02_reconcile_table_delta.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "pyspark",
+        "delta"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_spark_ingestion_wf_check",
+      "name": "ingestion_wf_check",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/spark/ingestion_wf_check.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "pyspark"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_spark_gmrn_swift_flow_job_status_report",
+      "name": "gmrn_swift_flow_job_status_report",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/spark/gmrn_swift_flow_job_status_report.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "gmrn_data",
+        "di_data",
+        "pyspark",
+        "ld",
+        "pa_data",
+        "output"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_spark_chc_medical_carrier_tobcs",
+      "name": "chc_medical_carrier_tobcs",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/spark/chc_medical_carrier_tobcs.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "pyspark",
+        "data"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_spark_gmrn_merge_flow_job_status_report",
+      "name": "gmrn_merge_flow_job_status_report",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/spark/gmrn_merge_flow_job_status_report.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "gmrn_data",
+        "di_data",
+        "lp",
+        "pyspark",
+        "lsb",
+        "lr",
+        "pa_data",
+        "output"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_spark_spark_jdbc_extract_revised",
+      "name": "spark_jdbc_extract_revised",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/spark/spark_jdbc_extract_revised.py",
+      "input_datasets": [
+        "/hcedata/user/phd9appl/CDD/publish/escan/data/hospitalpurge/current/20991231/"
+      ],
+      "output_datasets": [
+        "/hcedata/user/phd9appl/CDD/publish/escan/data/hospitalpurge/current/20991231/"
+      ],
+      "tables_read": [
+        "df_delta",
+        "pyspark",
+        "hospitalpurge"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_spark_lead_verify_status_report",
+      "name": "lead_verify_status_report",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/spark/lead_verify_status_report.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "pa_data",
+        "pyspark",
+        "output",
+        "lv"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_spark_03_reconcile_table_delta",
+      "name": "03_reconcile_table_delta",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/spark/03_reconcile_table_delta.py",
+      "input_datasets": [
+        "/hcedata/user/phd9appl/CDD/publish/escan/data/hospitalpurge/current/20991231/"
+      ],
+      "output_datasets": [
+        "/hcedata/user/phd9appl/CDD/publish/escan/data/hospitalpurge/current/20991231/"
+      ],
+      "tables_read": [
+        "df_raw",
+        "pyspark",
+        "hospitalpurge",
+        "delta"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_spark_publish_sqoop_data",
+      "name": "publish_sqoop_data",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/spark/publish_sqoop_data.py",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "vw_df_delta",
+        "pyspark",
+        "delta"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_spark_lsb_publish_sqoop_data",
+      "name": "lsb_publish_sqoop_data",
+      "component_type": "Spark_Job",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/spark/lsb_publish_sqoop_data.py",
+      "input_datasets": [
+        "/hcedata/user/phd9appl/CDD/publish/escan/data/hospitalpurge/current/20991231/"
+      ],
+      "output_datasets": [
+        "/hcedata/user/phd9appl/CDD/publish/escan/data/hospitalpurge/current/20991231/"
+      ],
+      "tables_read": [
+        "df_delta",
+        "pyspark",
+        "hospitalpurge"
+      ],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_pig_chc_parse_fixed_delimited_file",
+      "name": "chc_parse_fixed_delimited_file",
+      "component_type": "Pig_Script",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/pig/chc_parse_fixed_delimited_file.pig",
+      "input_datasets": [
+        "$inputPostBDFDirNoHits",
+        "$inputPostBDFDirRejects",
+        "maprfs://cust.analytics.hca/hcecdd/user/phd9appl/CDD/input/bdf/chc_accenture_aetna/20211011T11/J131044_D20211012_S439773_TUIH01_cbeMatchAppend.dat"
+      ],
+      "output_datasets": [
+        "/workspace/hcedata/user/phd9uat/tmp/medicalcarrier/es_nohits/",
+        "/workspace/hcedata/user/phd9uat/tmp/medicalcarrier/nopermid/",
+        "/workspace/hcedata/user/phd9uat/tmp/medicalcarrier/es_rejects/",
+        "/workspace/hcedata/user/phd9uat/chc/input/bdf/accenture/aetna/20211011T11/permIdPatientAcctId/",
+        "$outputDebugBaseDir/allRecsAllFields/$bcdate",
+        "/workspace/hcedata/user/phd9uat/chc/input/bdf/accenture/aetna/20211011T11/allDistinctRecs/"
+      ],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_pig_chc_generate_fixed_delimited_file",
+      "name": "chc_generate_fixed_delimited_file",
+      "component_type": "Pig_Script",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/pig/chc_generate_fixed_delimited_file.pig",
+      "input_datasets": [
+        "/workspace/hcedata/user/phd9uat/chc/output/tobcs_pipe/20211011T11/"
+      ],
+      "output_datasets": [
+        "/workspace/hcedata/user/phd9uat/chc/output/tobcs_fixed/20211011T11"
+      ],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_hive_generic_reconcile",
+      "name": "generic_reconcile",
+      "component_type": "Hive_Query",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/hive/generic_reconcile.sql",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [
+        "inc_"
+      ],
+      "tables_written": [
+        "inc_",
+        "IF"
+      ]
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_shell_preingest_check",
+      "name": "preingest_check",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/shell/preingest_check.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_shell_schema_check",
+      "name": "schema_check",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/shell/schema_check.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_shell_02_reconcile_table_delta",
+      "name": "02_reconcile_table_delta",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/shell/02_reconcile_table_delta.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_shell_partition_drop",
+      "name": "partition_drop",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/shell/partition_drop.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_shell_ingest_data",
+      "name": "ingest_data",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/shell/ingest_data.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_shell_copy_control",
+      "name": "copy_control",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/shell/copy_control.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_shell_publish_data",
+      "name": "publish_data",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/shell/publish_data.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_shell_publish_delta_data",
+      "name": "publish_delta_data",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/shell/publish_delta_data.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_shell_check_control",
+      "name": "check_control",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/shell/check_control.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_shell_03_reconcile_table_delta",
+      "name": "03_reconcile_table_delta",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/shell/03_reconcile_table_delta.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_shell_azcopy_dashboard_files",
+      "name": "azcopy_dashboard_files",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/shell/azcopy_dashboard_files.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_shell_monitor_report",
+      "name": "monitor_report",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/shell/monitor_report.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_shell_last_value",
+      "name": "last_value",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/shell/last_value.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_shell_01_reconcile_table_delta",
+      "name": "01_reconcile_table_delta",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/shell/01_reconcile_table_delta.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_shell_ingestion_wf_report",
+      "name": "ingestion_wf_report",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/shell/ingestion_wf_report.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_shell_reconcile_table_v2",
+      "name": "reconcile_table_v2",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/shell/reconcile_table_v2.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_shell_data_cleanup",
+      "name": "data_cleanup",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/shell/data_cleanup.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_shell_notification_for_leadactive",
+      "name": "notification_for_leadactive",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/shell/notification_for_leadactive.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_workflow_ingest_table_shell_reconcile_table_delta",
+      "name": "reconcile_table_delta",
+      "component_type": "Shell_Script",
+      "process_id": "hadoop_workflow_ingest_table",
+      "file_path": "app-data-ingestion/workflows/ingest_table/shell/reconcile_table_delta.sh",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_hive_globalmrnxhospinsurancecodes",
+      "name": "globalmrnxhospinsurancecodes",
+      "component_type": "Hive_Query",
+      "process_id": null,
+      "file_path": "app-data-ingestion/ddl/globalmrnxhospinsurancecodes.sql",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": [
+        "globalmrnxhospinsurancecodes"
+      ]
+    },
+    {
+      "id": "hadoop_hive_edipayersxstateinsurancenames",
+      "name": "edipayersxstateinsurancenames",
+      "component_type": "Hive_Query",
+      "process_id": null,
+      "file_path": "app-data-ingestion/ddl/edipayersxstateinsurancenames.sql",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": [
+        "edipayersxstateinsurancenames"
+      ]
+    },
+    {
+      "id": "hadoop_hive_tprcoverage",
+      "name": "tprcoverage",
+      "component_type": "Hive_Query",
+      "process_id": null,
+      "file_path": "app-data-ingestion/ddl/tprcoverage.sql",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": [
+        "tprcoverage"
+      ]
+    },
+    {
+      "id": "hadoop_hive_pidxpacct",
+      "name": "pidxpacct",
+      "component_type": "Hive_Query",
+      "process_id": null,
+      "file_path": "app-data-ingestion/ddl/pidxpacct.sql",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": [
+        "pidxpacct"
+      ]
+    },
+    {
+      "id": "hadoop_hive_hospinsurancecodes",
+      "name": "hospinsurancecodes",
+      "component_type": "Hive_Query",
+      "process_id": null,
+      "file_path": "app-data-ingestion/ddl/hospinsurancecodes.sql",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": [
+        "hospinsurancecodes"
+      ]
+    },
+    {
+      "id": "hadoop_hive_edipayeropsoutofregionconfig",
+      "name": "edipayeropsoutofregionconfig",
+      "component_type": "Hive_Query",
+      "process_id": null,
+      "file_path": "app-data-ingestion/ddl/edipayeropsoutofregionconfig.sql",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": [
+        "edipayeropsoutofregionconfig"
+      ]
+    },
+    {
+      "id": "hadoop_hive_val_globalmrndemo",
+      "name": "val_globalmrndemo",
+      "component_type": "Hive_Query",
+      "process_id": null,
+      "file_path": "app-data-ingestion/ddl/val_globalmrndemo.sql",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": [
+        "val_globalmrndemo"
+      ]
+    },
+    {
+      "id": "hadoop_hive_hospitalattributevalues",
+      "name": "hospitalattributevalues",
+      "component_type": "Hive_Query",
+      "process_id": null,
+      "file_path": "app-data-ingestion/ddl/hospitalattributevalues.sql",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": [
+        "hospitalattributevalues"
+      ]
+    },
+    {
+      "id": "hadoop_hive_hospitalprovidernums",
+      "name": "hospitalprovidernums",
+      "component_type": "Hive_Query",
+      "process_id": null,
+      "file_path": "app-data-ingestion/ddl/hospitalprovidernums.sql",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": [
+        "hospitalprovidernums"
+      ]
+    },
+    {
+      "id": "hadoop_hive_edipartners",
+      "name": "edipartners",
+      "component_type": "Hive_Query",
+      "process_id": null,
+      "file_path": "app-data-ingestion/ddl/edipartners.sql",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": [
+        "edipartners"
+      ]
+    },
+    {
+      "id": "hadoop_hive_staged_data",
+      "name": "staged_data",
+      "component_type": "Hive_Query",
+      "process_id": null,
+      "file_path": "app-data-ingestion/ddl/staged_data.sql",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": [
+        "val_globalmrndemo"
+      ]
+    },
+    {
+      "id": "hadoop_hive_globalmrndemographics",
+      "name": "globalmrndemographics",
+      "component_type": "Hive_Query",
+      "process_id": null,
+      "file_path": "app-data-ingestion/ddl/globalmrndemographics.sql",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": [
+        "globalmrndemographics"
+      ]
+    },
+    {
+      "id": "hadoop_hive_edipayerzipcodelookup",
+      "name": "edipayerzipcodelookup",
+      "component_type": "Hive_Query",
+      "process_id": null,
+      "file_path": "app-data-ingestion/ddl/edipayerzipcodelookup.sql",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": [
+        "edipayerzipcodelookup"
+      ]
+    },
+    {
+      "id": "hadoop_hive_globalmrn",
+      "name": "globalmrn",
+      "component_type": "Hive_Query",
+      "process_id": null,
+      "file_path": "app-data-ingestion/ddl/globalmrn.sql",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": [
+        "globalmrn"
+      ]
+    },
+    {
+      "id": "hadoop_hive_edipayers",
+      "name": "edipayers",
+      "component_type": "Hive_Query",
+      "process_id": null,
+      "file_path": "app-data-ingestion/ddl/edipayers.sql",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": [
+        "edipayers"
+      ]
+    },
+    {
+      "id": "hadoop_hive_hospitalattributes",
+      "name": "hospitalattributes",
+      "component_type": "Hive_Query",
+      "process_id": null,
+      "file_path": "app-data-ingestion/ddl/hospitalattributes.sql",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": [
+        "hospitalattributes"
+      ]
+    },
+    {
+      "id": "hadoop_hive_opsedipayershospitals",
+      "name": "opsedipayershospitals",
+      "component_type": "Hive_Query",
+      "process_id": null,
+      "file_path": "app-data-ingestion/ddl/opsedipayershospitals.sql",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": [
+        "opsedipayershospitals"
+      ]
+    },
+    {
+      "id": "hadoop_hive_globalmrnxpacct",
+      "name": "globalmrnxpacct",
+      "component_type": "Hive_Query",
+      "process_id": null,
+      "file_path": "app-data-ingestion/ddl/globalmrnxpacct.sql",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": [
+        "globalmrnxpacct"
+      ]
+    },
+    {
+      "id": "hadoop_hive_edipayeropslottoconfig",
+      "name": "edipayeropslottoconfig",
+      "component_type": "Hive_Query",
+      "process_id": null,
+      "file_path": "app-data-ingestion/ddl/edipayeropslottoconfig.sql",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": [
+        "edipayeropslottoconfig"
+      ]
+    },
+    {
+      "id": "hadoop_hive_globalmrnbadassociations",
+      "name": "globalmrnbadassociations",
+      "component_type": "Hive_Query",
+      "process_id": null,
+      "file_path": "app-data-ingestion/ddl/globalmrnbadassociations.sql",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": [
+        "globalmrnbadassociations"
+      ]
+    },
+    {
+      "id": "hadoop_hive_hintfoundcoverage",
+      "name": "hintfoundcoverage",
+      "component_type": "Hive_Query",
+      "process_id": null,
+      "file_path": "app-data-ingestion/ddl/hintfoundcoverage.sql",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": [
+        "hintfoundcoverage"
+      ]
+    },
+    {
+      "id": "hadoop_hive_foundcoverage",
+      "name": "foundcoverage",
+      "component_type": "Hive_Query",
+      "process_id": null,
+      "file_path": "app-data-ingestion/ddl/foundcoverage.sql",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": [
+        "foundcoverage"
+      ]
+    },
+    {
+      "id": "hadoop_hive_hospitals",
+      "name": "hospitals",
+      "component_type": "Hive_Query",
+      "process_id": null,
+      "file_path": "app-data-ingestion/ddl/hospitals.sql",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": [
+        "hospitals"
+      ]
+    },
+    {
+      "id": "hadoop_hive_patientacctstatestatus",
+      "name": "patientacctstatestatus",
+      "component_type": "Hive_Query",
+      "process_id": null,
+      "file_path": "app-data-ingestion/ddl/patientacctstatestatus.sql",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": [
+        "patientacctstatestatus"
+      ]
+    },
+    {
+      "id": "hadoop_hive_staged_globalmrn",
+      "name": "staged_globalmrn",
+      "component_type": "Hive_Query",
+      "process_id": null,
+      "file_path": "app-data-ingestion/ddl/staged_globalmrn.sql",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": [
+        "staged_globalmrn"
+      ]
+    },
+    {
+      "id": "hadoop_hive_create_all",
+      "name": "create_all",
+      "component_type": "Hive_Query",
+      "process_id": null,
+      "file_path": "app-data-ingestion/ddl/create_all.sql",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": []
+    },
+    {
+      "id": "hadoop_hive_track_ingest",
+      "name": "track_ingest",
+      "component_type": "Hive_Query",
+      "process_id": null,
+      "file_path": "app-data-ingestion/ddl/track_ingest.sql",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": [
+        "track_ingest"
+      ]
+    },
+    {
+      "id": "hadoop_hive_staged_globalmrndemographics_csv",
+      "name": "staged_globalmrndemographics_csv",
+      "component_type": "Hive_Query",
+      "process_id": null,
+      "file_path": "app-data-ingestion/ddl/staged_globalmrndemographics_csv.sql",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": [
+        "staged_globalmrndemographics_csv"
+      ]
+    },
+    {
+      "id": "hadoop_hive_patientacctscodes",
+      "name": "patientacctscodes",
+      "component_type": "Hive_Query",
+      "process_id": null,
+      "file_path": "app-data-ingestion/ddl/patientacctscodes.sql",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": [
+        "patientacctscodes"
+      ]
+    },
+    {
+      "id": "hadoop_hive_staged_globalmrndemographics",
+      "name": "staged_globalmrndemographics",
+      "component_type": "Hive_Query",
+      "process_id": null,
+      "file_path": "app-data-ingestion/ddl/staged_globalmrndemographics.sql",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": [
+        "staged_globalmrndemographics"
+      ]
+    },
+    {
+      "id": "hadoop_hive_patientaccts",
+      "name": "patientaccts",
+      "component_type": "Hive_Query",
+      "process_id": null,
+      "file_path": "app-data-ingestion/ddl/patientaccts.sql",
+      "input_datasets": [],
+      "output_datasets": [],
+      "tables_read": [],
+      "tables_written": [
+        "patientaccts"
+      ]
+    }
+  ],
+  "summary": {
+    "total_processes": 16,
+    "total_components": 139,
+    "total_flows": 0
+  }
+}

@@ -1,0 +1,120 @@
+# Codebase Intelligence Configuration
+
+parsing:
+  abinitio:
+    file_extensions: [".mp", ".ksh"]
+    extract_graph_flow: true
+    extract_dml: true
+    extract_transformations: true
+
+  hadoop:
+    oozie_xml: true
+    spark_files: ["*.py"]
+    pig_files: ["*.pig"]
+    hive_files: ["*.sql", "*.hql"]
+    schema_files: ["*.schema"]
+    param_files: ["*.param", "*.properties"]
+
+  databricks:
+    notebook_formats: ["*.py", "*.sql", "*.scala"]
+    extract_cells: true
+    parse_adf: true
+
+matching:
+  algorithms:
+    - name: "table_name_match"
+      weight: 0.4
+      threshold: 0.8
+
+    - name: "semantic_similarity"
+      weight: 0.3
+      threshold: 0.75
+
+    - name: "data_lineage"
+      weight: 0.2
+      threshold: 0.7
+
+    - name: "business_logic"
+      weight: 0.1
+      threshold: 0.6
+
+  overall_threshold: 0.7
+
+gap_analysis:
+  gap_types:
+    - missing_process
+    - logic_difference
+    - data_coverage
+    - aggregation_level
+    - business_rule
+    - missing_columns
+    - transformation_difference
+
+  priority_rules:
+    critical: ["missing_process", "data_coverage"]
+    high: ["logic_difference", "missing_columns"]
+    medium: ["aggregation_level", "transformation_difference"]
+    low: ["business_rule"]
+
+sttm:
+  include_fields:
+    - source_name
+    - source_datatype
+    - source_description
+    - source_sample_values
+    - target_name
+    - target_datatype
+    - target_description
+    - is_primary_key
+    - is_nullable
+    - processing_order
+    - transformation_rule
+    - business_rule
+    - data_quality_rule
+    - mapping_confidence
+
+  generation_rules:
+    infer_transformations: true
+    extract_business_rules: true
+    calculate_processing_order: true
+    identify_primary_keys: true
+
+output:
+  excel_reports:
+    - name: "Gap_Analysis_Report"
+      sheets:
+        - gap_summary
+        - missing_processes
+        - logic_differences
+        - data_coverage_gaps
+        - recommendations
+
+    - name: "STTM_Report"
+      sheets:
+        - source_to_target_mapping
+        - transformation_rules
+        - data_lineage
+        - column_statistics
+
+  formats:
+    - excel
+    - json
+    - html
+
+azure:
+  search:
+    vector_dimensions: 1536
+    semantic_configuration: "default"
+    indexing_batch_size: 1000
+
+  openai:
+    temperature: 0.1
+    max_tokens: 4000
+    model: "gpt-4"
+    embedding_model: "text-embedding-ada-002"
+
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "outputs/logs/app.log"
+  rotation: "100 MB"

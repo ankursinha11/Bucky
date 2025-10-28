@@ -1,0 +1,28 @@
+# ========================================
+# MINIMAL REQUIREMENTS (No RAG Chatbot)
+# Use this if you have installation issues
+# ========================================
+
+# Data processing (Excel output)
+pandas>=2.0.0
+openpyxl>=3.1.0
+
+# Code parsing (Ab Initio, Hadoop, Databricks)
+lxml>=4.9.0
+pyyaml>=6.0
+
+# Utilities
+python-dotenv>=1.0.0
+loguru>=0.7.0
+
+# ========================================
+# This gives you:
+# ✅ All parsers (Ab Initio, Hadoop, Databricks)
+# ✅ Excel output generation
+# ✅ STTM generation
+# ✅ Gap analysis
+# ❌ No RAG chatbot (add later)
+# ========================================
+
+# To add RAG chatbot later, run:
+# pip install openai chromadb sentence-transformers networkx

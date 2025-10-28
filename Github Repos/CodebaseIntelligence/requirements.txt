@@ -1,0 +1,41 @@
+# ========================================
+# MINIMAL REQUIREMENTS FOR YOUR SETUP
+# Azure OpenAI + ChromaDB + Local Storage
+# ========================================
+
+# Data processing (for Excel outputs)
+pandas>=2.0.0
+numpy>=1.24.0
+openpyxl>=3.1.0
+
+# Azure OpenAI (for GPT-4 and embeddings)
+openai>=1.0.0
+
+# Local Vector Database (FREE - replaces Azure AI Search!)
+chromadb>=0.4.0
+sentence-transformers>=2.2.0  # FREE local embeddings
+
+# Code parsing (Ab Initio, Hadoop, Databricks)
+lxml>=4.9.0
+xmltodict>=0.13.0
+pyyaml>=6.0
+
+# Graph analysis (for data lineage)
+networkx>=3.1
+
+# Utilities
+python-dotenv>=1.0.0  # For .env file
+tqdm>=4.66.0          # Progress bars
+loguru>=0.7.0         # Logging
+
+# ========================================
+# NOT NEEDED FOR YOUR SETUP (removed):
+# ========================================
+# azure-ai-search - Using ChromaDB instead!
+# azure-search-documents - Using ChromaDB instead!
+# azure-storage-blob - Using local storage!
+# langchain - Not using it directly
+# sqlalchemy, pymongo, neo4j - Optional databases
+# fastapi, uvicorn - API not needed for CLI
+# pytest - Testing not needed for client use
+# plotly, matplotlib - Visualization optional

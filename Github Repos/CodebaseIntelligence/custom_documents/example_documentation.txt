@@ -1,0 +1,31 @@
+EXAMPLE DOCUMENTATION FILE
+==========================
+
+This is a sample text file to demonstrate the custom documents feature.
+
+Replace this file with your own documentation:
+- Excel files (.xlsx, .xls)
+- CSV files (.csv)
+- Word documents (.docx)
+- PDF files (.pdf)
+- Text files (.txt, .md)
+- JSON files (.json)
+
+How to Use:
+-----------
+
+1. Add your files to this folder
+2. Run: python index_codebase.py --parser custom --source ./custom_documents
+3. Start the chatbot: python chatbot_cli.py
+4. Ask questions about your documents!
+
+Example Questions:
+------------------
+
+After indexing your own files, you can ask:
+- "What's in the data dictionary?"
+- "Show me the project requirements"
+- "What are the column mappings in the Excel file?"
+- "Summarize the meeting notes"
+
+Delete this file once you've added your own documentation.
