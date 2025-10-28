@@ -4,6 +4,7 @@ PRODUCTION VERSION with FAWN-based clean parameter extraction
 """
 
 import os
+import hashlib
 from pathlib import Path
 from typing import List, Dict, Any
 from loguru import logger
@@ -163,9 +164,13 @@ class AbInitioParser:
         """
         graph_name = Path(file_path).stem
 
-        # Create Process object
+        # Generate unique hash from file path (cross-platform compatible)
+        normalized_path = str(Path(file_path).as_posix()) if file_path else ''
+        file_hash = hashlib.md5(normalized_path.encode()).hexdigest()[:8]
+
+        # Create Process object with unique ID
         process = Process(
-            id=f"abinitio_{graph_name}",
+            id=f"abinitio_{graph_name}_{file_hash}",
             name=graph_name,
             system=SystemType.ABINITIO,
             process_type=ProcessType.GRAPH,
