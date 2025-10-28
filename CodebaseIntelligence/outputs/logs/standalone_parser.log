@@ -1,0 +1,56 @@
+2025-10-27 21:09:43.387 | INFO     | __main__:main:234 - ================================================================================
+2025-10-27 21:09:43.388 | INFO     | __main__:main:235 - Standalone Parser: HADOOP
+2025-10-27 21:09:43.388 | INFO     | __main__:main:236 - Repository: ./app-data-ingestion
+2025-10-27 21:09:43.388 | INFO     | __main__:main:237 - Output Directory: outputs/standalone_parser/hadoop_20251027_210943
+2025-10-27 21:09:43.388 | INFO     | __main__:main:238 - ================================================================================
+2025-10-27 21:09:43.388 | INFO     | __main__:parse_hadoop:67 - ================================================================================
+2025-10-27 21:09:43.388 | INFO     | __main__:parse_hadoop:68 - Parsing Hadoop Repository
+2025-10-27 21:09:43.388 | INFO     | __main__:parse_hadoop:69 - ================================================================================
+2025-10-27 21:09:43.388 | INFO     | parsers.hadoop.parser:parse_directory:44 - Parsing Hadoop directory: ./app-data-ingestion
+2025-10-27 21:09:43.388 | INFO     | parsers.hadoop.parser:_parse_coordinators:80 - Parsing coordinators in app-data-ingestion/coordinators
+2025-10-27 21:09:43.393 | INFO     | parsers.hadoop.parser:_parse_workflows:107 - Parsing workflows in app-data-ingestion/workflows
+2025-10-27 21:09:43.394 | INFO     | parsers.hadoop.parser:_parse_single_workflow:120 - Parsing workflow: ingest_chc
+2025-10-27 21:09:43.455 | INFO     | parsers.hadoop.parser:_parse_single_workflow:189 - Workflow ingest_chc: 47 components
+2025-10-27 21:09:43.455 | INFO     | parsers.hadoop.parser:_parse_single_workflow:120 - Parsing workflow: ingest_all
+2025-10-27 21:09:43.464 | INFO     | parsers.hadoop.parser:_parse_single_workflow:189 - Workflow ingest_all: 12 components
+2025-10-27 21:09:43.464 | INFO     | parsers.hadoop.parser:_parse_single_workflow:120 - Parsing workflow: ingest_table
+2025-10-27 21:09:43.502 | INFO     | parsers.hadoop.parser:_parse_single_workflow:189 - Workflow ingest_table: 49 components
+2025-10-27 21:09:43.503 | INFO     | parsers.hadoop.parser:_parse_ddl_dir:270 - Parsing DDL in app-data-ingestion/ddl
+2025-10-27 21:09:43.509 | INFO     | parsers.hadoop.parser:parse_directory:63 - Parsed 16 processes, 139 components
+2025-10-27 21:09:43.509 | INFO     | __main__:parse_hadoop:74 - ✓ Parsed 16 processes
+2025-10-27 21:09:43.510 | INFO     | __main__:parse_hadoop:75 - ✓ Extracted 139 components
+2025-10-27 21:09:43.510 | INFO     | __main__:parse_hadoop:76 - ✓ Found 0 data flows
+2025-10-27 21:09:43.510 | INFO     | __main__:parse_hadoop:82 - ✓ Summary saved to: outputs/standalone_parser/hadoop_20251027_210943/hadoop_summary.json
+2025-10-27 21:09:43.512 | INFO     | __main__:parse_hadoop:122 - ✓ Detailed results saved to: outputs/standalone_parser/hadoop_20251027_210943/hadoop_detailed_results.json
+2025-10-27 21:09:43.513 | INFO     | __main__:main:249 - 
+================================================================================
+2025-10-27 21:09:43.513 | INFO     | __main__:main:250 - ✓ Parsing Complete!
+2025-10-27 21:09:43.513 | INFO     | __main__:main:251 - ✓ Results saved to: outputs/standalone_parser/hadoop_20251027_210943
+2025-10-27 21:09:43.513 | INFO     | __main__:main:252 - ================================================================================
+2025-10-28 09:40:40.825 | INFO     | __main__:main:234 - ================================================================================
+2025-10-28 09:40:40.826 | INFO     | __main__:main:235 - Standalone Parser: ABINITIO
+2025-10-28 09:40:40.826 | INFO     | __main__:main:236 - Repository: /Users/ankurshome/Desktop/Hadoop_Parser/OneDrive_1_7-25-2025/Ab-Initio
+2025-10-28 09:40:40.826 | INFO     | __main__:main:237 - Output Directory: outputs/abinitio_test/abinitio_20251028_094040
+2025-10-28 09:40:40.826 | INFO     | __main__:main:238 - ================================================================================
+2025-10-28 09:40:40.826 | INFO     | __main__:parse_abinitio:40 - ================================================================================
+2025-10-28 09:40:40.826 | INFO     | __main__:parse_abinitio:41 - Parsing Ab Initio Repository
+2025-10-28 09:40:40.826 | INFO     | __main__:parse_abinitio:42 - ================================================================================
+2025-10-28 09:40:40.826 | INFO     | parsers.abinitio.parser:parse_directory:39 - Parsing Ab Initio directory: /Users/ankurshome/Desktop/Hadoop_Parser/OneDrive_1_7-25-2025/Ab-Initio
+2025-10-28 09:40:40.838 | INFO     | parsers.abinitio.parser:parse_directory:42 - Found 2 .mp files
+2025-10-28 09:40:40.838 | INFO     | parsers.abinitio.parser:parse_file:64 - Parsing file: /Users/ankurshome/Desktop/Hadoop_Parser/OneDrive_1_7-25-2025/Ab-Initio/400_commGenIpa.mp
+2025-10-28 09:40:45.290 | INFO     | parsers.abinitio.graph_flow_extractor:extract_flows:56 - Extracted 0 data flows
+2025-10-28 09:40:45.291 | INFO     | parsers.abinitio.parser:parse_file:91 - Extracted 0 components and 0 flows from 400_commGenIpa.mp
+2025-10-28 09:40:45.291 | INFO     | parsers.abinitio.parser:parse_file:64 - Parsing file: /Users/ankurshome/Desktop/Hadoop_Parser/OneDrive_1_7-25-2025/Ab-Initio/1100_CDD_Charlotte271Data.mp
+2025-10-28 09:41:05.983 | INFO     | parsers.abinitio.graph_flow_extractor:extract_flows:56 - Extracted 0 data flows
+2025-10-28 09:41:05.984 | INFO     | parsers.abinitio.parser:parse_file:91 - Extracted 0 components and 0 flows from 1100_CDD_Charlotte271Data.mp
+2025-10-28 09:41:05.985 | INFO     | __main__:parse_abinitio:47 - ✓ Parsed 2 processes
+2025-10-28 09:41:05.985 | INFO     | __main__:parse_abinitio:48 - ✓ Extracted 0 components
+2025-10-28 09:41:05.985 | INFO     | __main__:parse_abinitio:49 - ✓ Found 0 data flows
+2025-10-28 09:41:19.090 | INFO     | parsers.abinitio.parser:export_to_excel:387 - Exported to Excel: outputs/abinitio_test/abinitio_20251028_094040/AbInitio_Parsed_Output.xlsx
+2025-10-28 09:41:19.090 | INFO     | __main__:parse_abinitio:54 - ✓ Exported to: outputs/abinitio_test/abinitio_20251028_094040/AbInitio_Parsed_Output.xlsx
+2025-10-28 09:41:19.090 | INFO     | __main__:parse_abinitio:60 - ✓ Summary saved to: outputs/abinitio_test/abinitio_20251028_094040/abinitio_summary.json
+2025-10-28 09:41:19.090 | INFO     | __main__:main:249 - 
+================================================================================
+2025-10-28 09:41:19.090 | INFO     | __main__:main:250 - ✓ Parsing Complete!
+2025-10-28 09:41:19.091 | INFO     | __main__:main:251 - ✓ Results saved to: outputs/abinitio_test/abinitio_20251028_094040
+2025-10-28 09:41:19.091 | INFO     | __main__:main:252 - ================================================================================
