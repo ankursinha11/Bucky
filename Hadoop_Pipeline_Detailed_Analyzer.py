@@ -233,13 +233,26 @@ class DetailedPipelineAnalyzer:
         parts = [f"{v} {k}" for k, v in counts.items()]
         return ", ".join(parts)
 
-    def _classify_size(self, files: int, loc: int, actions: int) -> str:
-        """Classify pipeline size"""
-        if files <= 2 and loc <= 500 and actions <= 3:
+    def _classify_size(self, files: int, loc: int, actions: int, tables: int) -> str:
+        """Classify pipeline size based on multiple factors"""
+        # Calculate complexity score
+        # File count score
+        file_score = min(files / 2, 1.0)
+        # LOC score  
+        loc_score = min(loc / 2000, 1.0)
+        # Actions score
+        action_score = min(actions / 10, 1.0)
+        # Table count score
+        table_score = min(tables / 5, 1.0)
+        
+        # Overall complexity
+        complexity = (file_score + loc_score + action_score + table_score) / 4
+        
+        if complexity <= 0.25:
             return "🟢 Size: SMALL"
-        elif files <= 5 and loc <= 2000 and actions <= 10:
+        elif complexity <= 0.50:
             return "🟡 Size: MEDIUM"
-        elif files <= 10 and loc <= 10000 and actions <= 30:
+        elif complexity <= 0.75:
             return "🟠 Size: LARGE"
         else:
             return "🔴 Size: XLARGE"
@@ -262,7 +275,7 @@ class DetailedPipelineAnalyzer:
             ws1 = wb.active
             ws1.title = 'Pipeline Summary'
 
-            headers1 = ['Repo', 'Pipeline', 'Location', 'Actions', 'Total Files', 'Total LOC', 'Size']
+            headers1 = ['Repo', 'Pipeline', 'Location', 'Actions', 'Tables', 'Total Files', 'Total LOC', 'Size']
             ws1.append(headers1)
 
             # Style headers
@@ -277,13 +290,14 @@ class DetailedPipelineAnalyzer:
             for r in self.results:
                 total_files = len(r['scripts'])
                 total_loc = sum(s.get('lines', 0) for s in r['scripts'].values())
-                size = self._classify_size(total_files, total_loc, r['actions']).split(': ')[1]
+                size = self._classify_size(total_files, total_loc, r['actions'], r.get('table_count', 0)).split(': ')[1]
                 
                 ws1.append([
                     r['repo'],
                     r['pipeline_name'],
                     r['workflow_location'],
                     r['actions'],
+                    r.get('table_count', 0),
                     total_files,
                     total_loc,
                     size
