@@ -243,18 +243,28 @@ class LocalSearchClient:
     def get_stats(self) -> Dict[str, Any]:
         """Get collection statistics"""
         if not self.collection:
-            return {"error": "No collection initialized"}
+            return {
+                "error": "No collection initialized",
+                "document_count": 0,
+                "collection_count": 0,
+            }
 
         try:
             count = self.collection.count()
             return {
-                "total_documents": count,
+                "document_count": count,  # Use consistent key name
+                "total_documents": count,  # Keep for backwards compatibility
+                "collection_count": 1,
                 "collection_name": self.collection.name,
                 "persist_directory": str(self.persist_directory),
             }
         except Exception as e:
             logger.error(f"Error getting stats: {e}")
-            return {"error": str(e)}
+            return {
+                "error": str(e),
+                "document_count": 0,
+                "collection_count": 0,
+            }
 
 
 # Convenience function for quick testing
