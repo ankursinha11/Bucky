@@ -19,7 +19,7 @@ from parsers.hadoop import HadoopParser
 from parsers.databricks import DatabricksParser
 from parsers.custom import CustomDocumentParser
 from parsers.hadoop.deep_parser_multi_repo import DeepHadoopParserMultiRepo
-from parsers.databricks.deep_parser import DeepDatabricksParser
+from parsers.databricks.deep_parser_multi_repo import DeepDatabricksParserMultiRepo
 from parsers.abinitio.deep_parser import DeepAbInitioParser
 
 
@@ -49,7 +49,7 @@ def index_from_parser_deep(
     # Select deep parser based on type
     deep_parser_map = {
         'hadoop': DeepHadoopParserMultiRepo,
-        'databricks': DeepDatabricksParser,
+        'databricks': DeepDatabricksParserMultiRepo,
         'abinitio': DeepAbInitioParser,
     }
 
