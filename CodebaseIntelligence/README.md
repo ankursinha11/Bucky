@@ -36,9 +36,12 @@ Platform for analyzing legacy codebases (Ab Initio, Hadoop, Databricks) to gener
 - Complete source-to-target relationships
 - Excel GraphFlow sheet ready for analysis
 
-### 4. FREE Local Search
-- Uses ChromaDB (local vector database)
-- No API keys or Azure subscription needed!
+### 4. FREE Local Search & RAG Chatbot
+- ✅ **RAG Chatbot** for natural language queries about your codebase
+- ✅ **FREE Local Search** using ChromaDB + sentence-transformers
+- ✅ **Optional Azure OpenAI** for AI-powered answers
+- ✅ **Interactive CLI** - Ask questions, get instant answers
+- No API keys required for search-only mode!
 - Works 100% offline after setup
 
 ---
@@ -100,6 +103,27 @@ python3 run_analysis.py \
 - STTM mappings
 - Gap analysis report
 - Combined Excel reports
+
+### RAG Chatbot (Ask Questions!)
+
+```bash
+# Step 1: Index your codebase
+python3 index_codebase.py --abinitio-path "/path/to/Ab-Initio"
+
+# Step 2: Start chatbot
+python3 chatbot_cli.py
+
+# Or ask a single question
+python3 chatbot_cli.py "What does the patient matching process do?"
+```
+
+**Features:**
+- Ask questions in natural language
+- Search through parsed codebase
+- Get AI-powered answers (optional Azure OpenAI)
+- FREE local search (no API keys needed!)
+
+**See:** [RAG_CHATBOT_GUIDE.md](RAG_CHATBOT_GUIDE.md) for complete guide
 
 ---
 
