@@ -4,6 +4,7 @@ Wraps OozieParser for integration with CodebaseIntelligence architecture
 """
 
 import os
+import hashlib
 from pathlib import Path
 from typing import List, Dict, Any
 from loguru import logger
@@ -105,19 +106,40 @@ class HadoopParser:
 
     def _find_workflow_files(self, base_path: str) -> List[str]:
         """
-        Find all workflow.xml files recursively
+        Find all Oozie workflow and coordinator XML files recursively
+
+        Handles various naming patterns:
+        - workflow.xml, *_workflow.xml (in oozie folders or workflows dir)
+        - coordinator.xml, *_coordinator.xml
+        - Any .xml file in 'oozie' directories
 
         Args:
             base_path: Base directory to search
 
         Returns:
-            List of workflow.xml file paths
+            List of workflow/coordinator XML file paths
         """
         workflow_files = []
 
         for root, dirs, files in os.walk(base_path):
-            if 'workflow.xml' in files:
-                workflow_files.append(os.path.join(root, 'workflow.xml'))
+            for file in files:
+                if file.endswith('.xml'):
+                    file_path = os.path.join(root, file)
+
+                    # Include if:
+                    # 1. File is named workflow.xml or *_workflow.xml
+                    # 2. File is named coordinator.xml or *_coordinator.xml
+                    # 3. File is in an 'oozie' directory
+                    # 4. File is in a 'coordinators' directory
+                    if (file == 'workflow.xml' or
+                        file.endswith('_workflow.xml') or
+                        file == 'coordinator.xml' or
+                        file.endswith('_coordinator.xml') or
+                        '/oozie/' in file_path or
+                        '\\oozie\\' in file_path or  # Windows path
+                        '/coordinators/' in file_path or
+                        '\\coordinators\\' in file_path):  # Windows path
+                        workflow_files.append(file_path)
 
         return sorted(workflow_files)
 
@@ -133,16 +155,32 @@ class HadoopParser:
         """
         workflow_name = workflow_data.get('name', 'unknown')
         workflow_path = workflow_data.get('file_path', '')
+        is_coordinator = workflow_data.get('is_coordinator', False)
 
-        # Create Process object
+        # Generate unique hash from file path to ensure globally unique IDs
+        file_hash = hashlib.md5(workflow_path.encode()).hexdigest()[:8]
+
+        # Determine process type and description
+        if is_coordinator:
+            process_type = ProcessType.OOZIE_COORDINATOR
+            description = f"Hadoop Oozie Coordinator: {workflow_name}"
+            # For coordinators, extract schedule info
+            schedule = workflow_data.get('coordinator_frequency', None)
+        else:
+            process_type = ProcessType.OOZIE_WORKFLOW
+            description = f"Hadoop Oozie Workflow: {workflow_name}"
+            schedule = None
+
+        # Create Process object with unique ID
         process = Process(
-            id=f"hadoop_{workflow_name}",
+            id=f"hadoop_{workflow_name}_{file_hash}",
             name=workflow_name,
             system=SystemType.HADOOP,
-            process_type=ProcessType.OOZIE_WORKFLOW,
+            process_type=process_type,
             file_path=workflow_path,
             repo_name=Path(workflow_path).parent.parent.name if workflow_path else '',
-            description=f"Hadoop Oozie Workflow: {workflow_name}",
+            description=description,
+            schedule=schedule,
             input_sources=workflow_data.get('input_sources', []),
             output_targets=workflow_data.get('output_targets', []),
             parameters=workflow_data.get('parameters', {}),
@@ -153,7 +191,8 @@ class HadoopParser:
         component_ids = []
 
         for idx, action in enumerate(workflow_data.get('actions', [])):
-            component_id = f"{process.id}_{action['name']}"
+            # Include index to ensure uniqueness even if action names repeat
+            component_id = f"{process.id}_{action['name']}_{idx}"
 
             # Map action type to ComponentType
             component_type = self._map_action_type(action['type'])
@@ -198,6 +237,7 @@ class HadoopParser:
             'sqoop': ComponentType.SQOOP_IMPORT,
             'shell': ComponentType.SHELL_SCRIPT,
             'sub-workflow': ComponentType.OOZIE_WORKFLOW,
+            'coordinator': ComponentType.OOZIE_COORDINATOR,
             'java': ComponentType.SPARK_JOB,  # Treat Java as Spark
             'map-reduce': ComponentType.SPARK_JOB,
         }
