@@ -12,6 +12,7 @@ Features:
 import os
 import json
 import re
+import hashlib
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from loguru import logger
@@ -328,9 +329,13 @@ class DatabricksParser:
         notebook_name = notebook_data.get('name', 'unknown')
         notebook_path = notebook_data.get('file_path', '')
 
-        # Create Process object
+        # Generate unique hash from file path (cross-platform compatible)
+        normalized_path = str(Path(notebook_path).as_posix()) if notebook_path else ''
+        file_hash = hashlib.md5(normalized_path.encode()).hexdigest()[:8]
+
+        # Create Process object with unique ID
         process = Process(
-            id=f"databricks_{notebook_name}",
+            id=f"databricks_{notebook_name}_{file_hash}",
             name=notebook_name,
             system=SystemType.DATABRICKS,
             process_type=ProcessType.NOTEBOOK,
