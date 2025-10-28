@@ -44,6 +44,13 @@ class CodebaseRAGChatbot:
         logger.info("Initializing FREE local search with ChromaDB...")
         self.search_client = LocalSearchClient(persist_directory=vector_db_path)
 
+        # Load existing collection
+        try:
+            self.search_client.create_index("codebase")
+            logger.info("✓ Loaded existing vector database collection")
+        except Exception as e:
+            logger.warning(f"Could not load collection: {e}")
+
         # Initialize OpenAI if available and key provided
         self.llm = None
         self.openai_available = OPENAI_AVAILABLE
