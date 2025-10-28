@@ -126,19 +126,20 @@ class ScriptLogic:
     Tier 3: Deepest level - detailed script content and transformations
     Contains actual code, transformations, and column-level lineage
     """
+    # Required fields (no defaults)
     script_id: str
     script_name: str
     script_type: str  # pig, spark, hive, python, sql, etc.
     script_path: str
+    raw_content: str  # Full script text
+    content_hash: str  # MD5 hash for change detection
 
-    # Links to upper tiers
+    # Links to upper tiers (optional)
     action_id: Optional[str] = None  # Links to Tier 2 ActionNode
     workflow_id: Optional[str] = None  # Links to Tier 2 WorkflowFlow
     repository_id: Optional[str] = None  # Links to Tier 1 Repository
 
-    # Script content
-    raw_content: str  # Full script text
-    content_hash: str  # MD5 hash for change detection
+    # Script metadata
     lines_of_code: int = 0
     language_version: Optional[str] = None  # e.g., "Pig 0.16", "Spark 3.2"
 
