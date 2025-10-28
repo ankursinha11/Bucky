@@ -126,6 +126,10 @@ class HadoopParser:
                 if file.endswith('.xml'):
                     file_path = os.path.join(root, file)
 
+                    # Normalize path for cross-platform compatibility
+                    # Use Path to split and check directory names
+                    path_parts = Path(file_path).parts
+
                     # Include if:
                     # 1. File is named workflow.xml or *_workflow.xml
                     # 2. File is named coordinator.xml or *_coordinator.xml
@@ -135,10 +139,8 @@ class HadoopParser:
                         file.endswith('_workflow.xml') or
                         file == 'coordinator.xml' or
                         file.endswith('_coordinator.xml') or
-                        '/oozie/' in file_path or
-                        '\\oozie\\' in file_path or  # Windows path
-                        '/coordinators/' in file_path or
-                        '\\coordinators\\' in file_path):  # Windows path
+                        'oozie' in path_parts or
+                        'coordinators' in path_parts):
                         workflow_files.append(file_path)
 
         return sorted(workflow_files)
@@ -157,8 +159,12 @@ class HadoopParser:
         workflow_path = workflow_data.get('file_path', '')
         is_coordinator = workflow_data.get('is_coordinator', False)
 
-        # Generate unique hash from file path to ensure globally unique IDs
-        file_hash = hashlib.md5(workflow_path.encode()).hexdigest()[:8]
+        # Normalize path for consistent hashing across Windows/Unix
+        # Convert all separators to forward slashes for hash consistency
+        normalized_path = str(Path(workflow_path).as_posix()) if workflow_path else ''
+
+        # Generate unique hash from normalized file path to ensure globally unique IDs
+        file_hash = hashlib.md5(normalized_path.encode()).hexdigest()[:8]
 
         # Determine process type and description
         if is_coordinator:
