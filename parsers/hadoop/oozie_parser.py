@@ -68,13 +68,17 @@ class OozieParser:
             logger.error(f"Failed to parse workflow XML {workflow_path}: {e}")
             return {}
 
-        # Extract workflow name
+        # Check if this is a coordinator file
+        is_coordinator = 'coordinator-app' in root.tag
+
+        # Extract workflow/coordinator name
         workflow_name = root.get('name', Path(workflow_path).parent.name)
 
         # Parse workflow data
         workflow_data = {
             'name': workflow_name,
             'file_path': workflow_path,
+            'is_coordinator': is_coordinator,
             'actions': [],
             'sub_workflows': [],
             'input_sources': [],
@@ -82,6 +86,30 @@ class OozieParser:
             'parameters': {},
             'global_properties': self.global_properties.copy(),
         }
+
+        # If this is a coordinator, extract coordinator-specific data
+        if is_coordinator:
+            workflow_data['coordinator_frequency'] = root.get('frequency', 'unknown')
+            workflow_data['coordinator_start'] = root.get('start', 'unknown')
+            workflow_data['coordinator_end'] = root.get('end', 'unknown')
+
+            # Extract the referenced workflow path
+            workflow_ref = root.find('.//{*}workflow/{*}app-path')
+            if workflow_ref is not None and workflow_ref.text:
+                workflow_data['referenced_workflow'] = workflow_ref.text
+
+                # Create a synthetic action for the coordinator trigger
+                coordinator_action = {
+                    'name': 'coordinator_trigger',
+                    'type': 'coordinator',
+                    'parameters': {
+                        'frequency': workflow_data['coordinator_frequency'],
+                        'referenced_workflow': workflow_ref.text
+                    },
+                    'input_paths': [],
+                    'output_paths': []
+                }
+                workflow_data['actions'].append(coordinator_action)
 
         # Extract parameters
         parameters_elem = root.find('.//{*}parameters')
