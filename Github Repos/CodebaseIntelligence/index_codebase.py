@@ -18,7 +18,7 @@ from parsers.abinitio import AbInitioParser
 from parsers.hadoop import HadoopParser
 from parsers.databricks import DatabricksParser
 from parsers.custom import CustomDocumentParser
-from parsers.hadoop.deep_parser import DeepHadoopParser
+from parsers.hadoop.deep_parser_multi_repo import DeepHadoopParserMultiRepo
 from parsers.databricks.deep_parser import DeepDatabricksParser
 from parsers.abinitio.deep_parser import DeepAbInitioParser
 
@@ -48,7 +48,7 @@ def index_from_parser_deep(
 
     # Select deep parser based on type
     deep_parser_map = {
-        'hadoop': DeepHadoopParser,
+        'hadoop': DeepHadoopParserMultiRepo,
         'databricks': DeepDatabricksParser,
         'abinitio': DeepAbInitioParser,
     }
@@ -66,11 +66,20 @@ def index_from_parser_deep(
     result = deep_parser.parse_directory(source_path)
 
     repository = result.get("repository")
+    repositories = result.get("repositories", [])  # Multi-app support
     workflow_flows = result.get("workflow_flows", [])
     script_logics = result.get("script_logics", [])
 
     print(f"\n✓ Deep parsing complete!")
-    print(f"   📊 Tier 1 (Repository): {repository.name}")
+
+    # Show appropriate message for single vs multiple repositories
+    if repositories and len(repositories) > 1:
+        print(f"   📦 Applications: {len(repositories)}")
+        for repo in repositories:
+            print(f"      - {repo.name}")
+    elif repository:
+        print(f"   📊 Tier 1 (Repository): {repository.name}")
+
     print(f"   📊 Tier 2 (Workflows): {len(workflow_flows)} workflows")
     print(f"   📊 Tier 3 (Scripts): {len(script_logics)} scripts analyzed")
     print(f"   🔍 Total transformations: {sum(len(s.transformations) for s in script_logics)}")
@@ -86,6 +95,7 @@ def index_from_parser_deep(
         indexer = DeepIndexer(vector_db_path=vector_db_path)
         counts = indexer.index_deep_analysis(
             repository=repository,
+            repositories=repositories if repositories else None,
             workflow_flows=workflow_flows,
             script_logics=script_logics,
         )
