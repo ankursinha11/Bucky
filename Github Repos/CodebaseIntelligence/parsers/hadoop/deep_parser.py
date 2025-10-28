@@ -5,7 +5,7 @@ This is the MASTER parser that orchestrates everything!
 
 import os
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from loguru import logger
 
 from core.models import Repository, RepositoryType, WorkflowFlow, ActionNode, FlowEdge, ActionType
@@ -211,7 +211,7 @@ class DeepHadoopParser:
                     output_paths=comp.output_datasets or [],
                     parameters=comp.parameters or {},
                     execution_order=i + 1,
-                    description=comp.description,
+                    description=comp.business_description or "",
                 )
 
                 workflow_flow.actions.append(action)
