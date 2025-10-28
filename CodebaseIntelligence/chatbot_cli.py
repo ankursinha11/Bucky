@@ -12,6 +12,16 @@ from loguru import logger
 # Add project to path
 sys.path.insert(0, str(Path(__file__).parent))
 
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+    logger.info("✓ Loaded .env file")
+except ImportError:
+    logger.warning("python-dotenv not installed. Set environment variables manually.")
+except Exception as e:
+    logger.warning(f"Could not load .env file: {e}")
+
 from services.rag_chatbot_integrated import CodebaseRAGChatbot
 from services.codebase_indexer import CodebaseIndexer
 
@@ -67,7 +77,20 @@ def setup_chatbot() -> CodebaseRAGChatbot:
     """Initialize chatbot"""
     print("\n🔧 Initializing chatbot...")
 
-    # Check for OpenAI API key
+    # TEMPORARY: Hardcoded credentials for testing
+    # TODO: Remove this and use .env file in production!
+    TEMP_API_KEY = None  # <-- PUT YOUR API KEY HERE (in quotes)
+    TEMP_ENDPOINT = None  # <-- PUT YOUR ENDPOINT HERE (in quotes)
+    TEMP_DEPLOYMENT = None  # <-- PUT YOUR DEPLOYMENT NAME HERE (in quotes)
+
+    # Set environment variables if hardcoded values provided
+    if TEMP_API_KEY:
+        os.environ["AZURE_OPENAI_API_KEY"] = TEMP_API_KEY
+        os.environ["AZURE_OPENAI_ENDPOINT"] = TEMP_ENDPOINT or "https://your-resource.openai.azure.com/"
+        os.environ["AZURE_OPENAI_DEPLOYMENT_NAME"] = TEMP_DEPLOYMENT or "gpt-4"
+        print("✓ Using hardcoded credentials (TEMPORARY)")
+
+    # Check for OpenAI API key (from env or hardcoded)
     api_key = os.getenv("AZURE_OPENAI_API_KEY")
 
     if api_key:
