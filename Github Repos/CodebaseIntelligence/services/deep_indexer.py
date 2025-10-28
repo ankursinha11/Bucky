@@ -30,6 +30,7 @@ class DeepIndexer:
     def index_deep_analysis(
         self,
         repository: Repository = None,
+        repositories: List[Repository] = None,
         workflow_flows: List[WorkflowFlow] = None,
         script_logics: List[ScriptLogic] = None,
     ) -> Dict[str, int]:
@@ -37,7 +38,8 @@ class DeepIndexer:
         Index all tiers
 
         Args:
-            repository: Tier 1 repository
+            repository: Tier 1 repository (single) - for backward compatibility
+            repositories: Tier 1 repositories (multiple) - NEW for multi-app support
             workflow_flows: Tier 2 workflows
             script_logics: Tier 3 scripts
 
@@ -55,12 +57,18 @@ class DeepIndexer:
             "tier3_lineage": 0,
         }
 
-        # Index Tier 1: Repository
-        if repository:
-            repo_doc = self._create_repository_document(repository)
+        # Index Tier 1: Repository/Repositories
+        repos_to_index = []
+        if repositories:
+            repos_to_index = repositories
+        elif repository:
+            repos_to_index = [repository]
+
+        for repo in repos_to_index:
+            repo_doc = self._create_repository_document(repo)
             documents.append(repo_doc)
-            counts["tier1_repository"] = 1
-            logger.info(f"  ✓ Tier 1 (Repository): {repository.name}")
+            counts["tier1_repository"] += 1
+            logger.info(f"  ✓ Tier 1 (Repository): {repo.name}")
 
         # Index Tier 2: Workflow Flows
         if workflow_flows:
