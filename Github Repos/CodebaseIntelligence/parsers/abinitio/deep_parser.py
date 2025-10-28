@@ -339,17 +339,21 @@ class DeepAbInitioParser:
         # Build content from component parameters
         raw_content = self._build_component_content(component)
 
+        # Generate content hash
+        content_hash = hashlib.md5(raw_content.encode()).hexdigest()
+
+        # Get script path from component
+        script_path = component.file_path or f"abinitio://{process.name}/{component.name}"
+
         # Create script logic
         script_logic = ScriptLogic(
             script_id=script_id,
             script_name=component.name,
             script_type=component.component_type.value,
-            workflow_id=process.id,
+            script_path=script_path,
             raw_content=raw_content,
-            transformations=[],
-            column_lineages=[],
-            inputs=[],
-            outputs=[]
+            content_hash=content_hash,
+            workflow_id=process.id,
         )
 
         # Extract transformations based on component type
@@ -408,9 +412,6 @@ class DeepAbInitioParser:
                         transformation_id=f"{script_logic.script_id}_transform_{trans_count}",
                         transformation_type=TransformationType.TRANSFORM,
                         code_snippet=f"{param_name} = {param_value}",
-                        condition=None,
-                        inputs=[],
-                        outputs=[param_name]
                     )
                     script_logic.transformations.append(trans)
 
@@ -423,8 +424,6 @@ class DeepAbInitioParser:
                     transformation_type=TransformationType.FILTER,
                     code_snippet=f"FILTER: {filter_expr}",
                     condition=filter_expr,
-                    inputs=[],
-                    outputs=[]
                 )
                 script_logic.transformations.append(trans)
 
@@ -438,8 +437,6 @@ class DeepAbInitioParser:
                 transformation_type=TransformationType.JOIN,
                 code_snippet=f"JOIN ON {join_key} ({join_type})",
                 condition=f"key={join_key}",
-                inputs=[],
-                outputs=[]
             )
             script_logic.transformations.append(trans)
 
@@ -453,8 +450,6 @@ class DeepAbInitioParser:
                 transformation_type=TransformationType.AGGREGATE,
                 code_snippet=f"GROUP BY {group_by} AGGREGATE {agg_expr}",
                 condition=f"group_by={group_by}",
-                inputs=[],
-                outputs=[]
             )
             script_logic.transformations.append(trans)
 
@@ -466,9 +461,6 @@ class DeepAbInitioParser:
                 transformation_id=f"{script_logic.script_id}_sort",
                 transformation_type=TransformationType.SORT,
                 code_snippet=f"SORT BY {sort_key}",
-                condition=None,
-                inputs=[],
-                outputs=[]
             )
             script_logic.transformations.append(trans)
 
@@ -489,12 +481,17 @@ class DeepAbInitioParser:
             # Parse field definitions
             fields = self._parse_dml_fields(dml_param)
 
+            # Use component name as table name
+            table_name = component.name
+
             for field in fields:
                 lineage = ColumnLineage(
+                    source_table=table_name,
                     source_column=field,
+                    target_table=table_name,
                     target_column=field,
-                    transformation_type="direct",
-                    transformation_logic=f"Field: {field}"
+                    transformation_logic=f"Field: {field}",
+                    is_pass_through=True
                 )
                 script_logic.column_lineages.append(lineage)
 
@@ -533,13 +530,13 @@ class DeepAbInitioParser:
         if 'input' in comp_type:
             file_path = params.get('file', params.get('path', params.get('filename', '')))
             if file_path:
-                script_logic.inputs.append(file_path)
+                script_logic.input_files.append(file_path)
 
         # Output files
         elif 'output' in comp_type:
             file_path = params.get('file', params.get('path', params.get('filename', '')))
             if file_path:
-                script_logic.outputs.append(file_path)
+                script_logic.output_files.append(file_path)
 
     def _generate_ascii_flow(self, actions: List[ActionNode], edges: List[FlowEdge]) -> str:
         """
