@@ -102,12 +102,12 @@ class CodebaseIndexer:
 
             content = "\n".join(content_parts)
 
-            # Create document
+            # Create document (id must be at TOP LEVEL for ChromaDB)
             doc = {
+                "id": process.id,  # TOP LEVEL - required by ChromaDB
                 "content": content,
                 "metadata": {
                     "doc_type": "process",
-                    "id": process.id,
                     "name": process.name,
                     "system": process.system.value,
                     "process_type": process.process_type.value,
@@ -153,12 +153,12 @@ class CodebaseIndexer:
 
             content = "\n".join(content_parts)
 
-            # Create document
+            # Create document (id must be at TOP LEVEL for ChromaDB)
             doc = {
+                "id": component.id,  # TOP LEVEL - required by ChromaDB
                 "content": content,
                 "metadata": {
                     "doc_type": "component",
-                    "id": component.id,
                     "name": component.name,
                     "system": component.system,
                     "component_type": component.component_type.value,
@@ -192,12 +192,12 @@ class CodebaseIndexer:
 
             content = "\n".join(content_parts)
 
-            # Create document
+            # Create document (id must be at TOP LEVEL for ChromaDB)
             doc = {
+                "id": sttm.get("mapping_id", f"sttm_{len(documents)}"),  # TOP LEVEL
                 "content": content,
                 "metadata": {
                     "doc_type": "sttm",
-                    "id": sttm.get("mapping_id", ""),
                     "name": f"{sttm.get('source_column_name', '')} → {sttm.get('target_column_name', '')}",
                     "source_system": sttm.get("source_system", ""),
                     "target_system": sttm.get("target_system", ""),
@@ -229,12 +229,12 @@ class CodebaseIndexer:
 
             content = "\n".join(content_parts)
 
-            # Create document
+            # Create document (id must be at TOP LEVEL for ChromaDB)
             doc = {
+                "id": gap.get("gap_id", f"gap_{len(documents)}"),  # TOP LEVEL
                 "content": content,
                 "metadata": {
                     "doc_type": "gap",
-                    "id": gap.get("gap_id", ""),
                     "name": gap.get("name", ""),
                     "gap_type": gap.get("gap_type", ""),
                     "severity": gap.get("severity", ""),
@@ -268,8 +268,9 @@ class CodebaseIndexer:
 
         if isinstance(data, list):
             # List of items
-            for item in data:
+            for idx, item in enumerate(data):
                 doc = {
+                    "id": item.get("id", f"json_item_{idx}"),  # TOP LEVEL
                     "content": json.dumps(item, indent=2),
                     "metadata": {
                         "doc_type": item.get("type", "unknown"),
@@ -280,10 +281,12 @@ class CodebaseIndexer:
                 documents.append(doc)
         elif isinstance(data, dict):
             # Single object or structured data
+            doc_idx = 0
             for key, value in data.items():
                 if isinstance(value, list):
                     for item in value:
                         doc = {
+                            "id": item.get("id", f"json_{key}_{doc_idx}"),  # TOP LEVEL
                             "content": json.dumps(item, indent=2),
                             "metadata": {
                                 "doc_type": key,
@@ -291,6 +294,7 @@ class CodebaseIndexer:
                             },
                         }
                         documents.append(doc)
+                        doc_idx += 1
 
         logger.info(f"Indexing {len(documents)} documents from JSON...")
         self.search_client.index_documents(documents)
