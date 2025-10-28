@@ -159,7 +159,7 @@ class LocalSearchClient:
         query: str,
         top: int = 5,
         filters: Optional[Dict[str, str]] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> Dict[str, Any]:
         """
         Search the vector database
 
@@ -169,11 +169,11 @@ class LocalSearchClient:
             filters: Optional filters (e.g., {"doc_type": "process"})
 
         Returns:
-            List of search results
+            Dict with "results" key containing list of search results
         """
         if not self.collection:
             logger.warning("No collection initialized")
-            return []
+            return {"results": [], "total": 0}
 
         try:
             # Generate query embedding
@@ -203,18 +203,21 @@ class LocalSearchClient:
                     }
                     search_results.append(result)
 
-            return search_results
+            return {
+                "results": search_results,
+                "total": len(search_results),
+            }
 
         except Exception as e:
             logger.error(f"Error searching: {e}")
-            return []
+            return {"results": [], "total": 0, "error": str(e)}
 
     def hybrid_search(
         self,
         query: str,
         top: int = 5,
         filters: Optional[Dict[str, str]] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> Dict[str, Any]:
         """
         Hybrid search (semantic + keyword)
 
@@ -226,7 +229,7 @@ class LocalSearchClient:
             filters: Optional filters
 
         Returns:
-            List of search results
+            Dict with "results" key containing list of search results
         """
         # For now, just use semantic search
         # ChromaDB doesn't have built-in keyword search like Azure AI Search
