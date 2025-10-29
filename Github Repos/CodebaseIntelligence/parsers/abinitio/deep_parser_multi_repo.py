@@ -116,7 +116,7 @@ class DeepAbInitioParserMultiRepo(DeepAbInitioParser):
             project_name = Path(base_path).name
             project_groups[project_name] = {
                 "processes": list(processes),
-                "components": list(components),
+                "components": list(components), 
                 "path": base_path
             }
             return dict(project_groups)
