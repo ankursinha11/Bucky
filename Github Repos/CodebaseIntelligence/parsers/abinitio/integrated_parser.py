@@ -438,36 +438,31 @@ Provide:
 
         logger.info(f"Exporting integrated results to Excel: {output_path}")
 
-        with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
-            # Use existing Ab Initio export for first 3 sheets
-            # But raw_mp_data now has enhanced graph_flow!
-            self.abinitio_parser.raw_mp_data = integrated_result.get("raw_mp_data", [])
-            self.abinitio_parser.export_to_excel(output_path)
+        # First, export Ab Initio data (creates 4 sheets)
+        self.abinitio_parser.raw_mp_data = integrated_result.get("raw_mp_data", [])
+        self.abinitio_parser.export_to_excel(output_path)
 
-            # Load the existing workbook to add Autosys sheet
-            if integrated_result.get("autosys_jobs"):
-                autosys_data = []
+        # Then, add Autosys sheet if available
+        if integrated_result.get("autosys_jobs"):
+            autosys_data = []
 
-                for job in integrated_result["autosys_jobs"]:
-                    autosys_data.append({
-                        "Job_Name": job.name,
-                        "Ab_Initio_Graph": job.parameters.get("abinitio_graph", ""),
-                        "Command": job.parameters.get("command", ""),
-                        "Machine": job.parameters.get("machine", ""),
-                        "Condition": job.parameters.get("condition", ""),
-                        "Description": job.business_description or "",
-                    })
+            for job in integrated_result["autosys_jobs"]:
+                autosys_data.append({
+                    "Job_Name": job.name,
+                    "Ab_Initio_Graph": job.parameters.get("abinitio_graph", ""),
+                    "Command": job.parameters.get("command", ""),
+                    "Machine": job.parameters.get("machine", ""),
+                    "Condition": job.parameters.get("condition", ""),
+                    "Description": job.business_description or "",
+                })
 
-                if autosys_data:
-                    # Re-open to add sheet
-                    from openpyxl import load_workbook
-                    wb = load_workbook(output_path)
+            if autosys_data:
+                df_autosys = pd.DataFrame(autosys_data)
 
-                    df_autosys = pd.DataFrame(autosys_data)
-
-                    # Add as new sheet
-                    with pd.ExcelWriter(output_path, engine='openpyxl', mode='a') as writer:
-                        df_autosys.to_excel(writer, sheet_name='AutosysJobs', index=False)
+                # Append as new sheet
+                from openpyxl import load_workbook
+                with pd.ExcelWriter(output_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+                    df_autosys.to_excel(writer, sheet_name='AutosysJobs', index=False)
 
         logger.info(f"✓ Integrated Excel created: {output_path}")
         logger.info(f"   5 sheets with ENHANCED GraphFlow from Autosys!")
