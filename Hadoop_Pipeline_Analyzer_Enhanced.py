@@ -37,8 +37,9 @@ class CompleteHadoopAnalyzer:
                 # Check if it looks like a Hadoop repo
                 if self._is_hadoop_repo(item):
                     repos.append(item)
+                    print(f"   ✓ Found repo: {item.name}")
 
-        print(f"✅ Found {len(repos)} Hadoop repositories\n")
+        print(f"\n✅ Found {len(repos)} Hadoop repositories\n")
 
         for repo in repos:
             self.analyze_repo(str(repo))
@@ -82,8 +83,15 @@ class CompleteHadoopAnalyzer:
         workflows = self._find_all_workflows(repo)
         coordinators = self._find_all_coordinators(repo)
         
-        print(f"   ✅ Found {len(workflows)} workflows")
-        print(f"   ✅ Found {len(coordinators)} coordinators\n")
+        print(f"   ✅ Found {len(workflows)} unique workflows")
+        print(f"   ✅ Found {len(coordinators)} coordinators")
+        
+        # Show workflow list for verification
+        if len(workflows) <= 20:
+            print(f"\n   Workflows found:")
+            for wf in workflows:
+                print(f"      - {wf.relative_to(repo)}")
+        print()
 
         # Analyze each workflow
         for workflow_file in workflows:
@@ -137,11 +145,16 @@ class CompleteHadoopAnalyzer:
     def _find_all_workflows(self, repo: Path) -> List[Path]:
         """Find all workflow XML files (not coordinators)"""
         workflows = []
+        seen_names = set()  # Track unique workflow names to avoid duplicates
         
         # Search for all XML files
         for xml_file in repo.rglob("*.xml"):
             # Skip certain directories
-            if any(skip in str(xml_file) for skip in ['.git', 'target', 'build']):
+            if any(skip in str(xml_file) for skip in ['.git', 'target', 'build', 'target', '.svn']):
+                continue
+            
+            # Skip backup/temp files
+            if any(xml_file.name.endswith(suffix) for suffix in ['.bak', '.tmp', '.backup', '~']):
                 continue
             
             # Check if it's a workflow (not coordinator)
@@ -153,7 +166,20 @@ class CompleteHadoopAnalyzer:
                 root_tag = root.tag.split('}')[-1] if '}' in root.tag else root.tag
                 
                 if root_tag == 'workflow-app':
-                    workflows.append(xml_file)
+                    # Get workflow name to avoid duplicates
+                    workflow_name = root.attrib.get('name', '')
+                    
+                    # Create unique key based on name or file path
+                    if workflow_name:
+                        unique_key = workflow_name
+                    else:
+                        # Use relative path as key
+                        unique_key = str(xml_file.relative_to(repo))
+                    
+                    # Only add if we haven't seen this workflow name before
+                    if unique_key not in seen_names:
+                        workflows.append(xml_file)
+                        seen_names.add(unique_key)
             except:
                 continue
         
@@ -682,12 +708,21 @@ def main():
 
     path = Path(args.path)
     if path.is_dir():
-        if analyzer._is_hadoop_repo(path):
+        # Check if it contains multiple repos (subdirectories that are repos)
+        subdirs = [item for item in path.iterdir() if item.is_dir() and not item.name.startswith('.')]
+        sub_repos = [d for d in subdirs if analyzer._is_hadoop_repo(d)]
+        
+        if len(sub_repos) > 0:
+            # Multi-repo mode: folder contains multiple repos
+            print("📦 Multi-repository mode\n")
+            analyzer.analyze_folder(args.path)
+        elif analyzer._is_hadoop_repo(path):
+            # Single repo mode: the path itself is a repo
             print("📦 Single repository mode\n")
             analyzer.analyze_repo(args.path)
         else:
-            print("📦 Multi-repository mode\n")
-            analyzer.analyze_folder(args.path)
+            print(f"⚠️  No Hadoop repositories found in: {args.path}")
+            return
     else:
         print(f"⚠️  Invalid path: {args.path}")
         return
