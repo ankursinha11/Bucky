@@ -281,6 +281,7 @@ class DeepAbInitioParser:
         workflow_flow = WorkflowFlow(
             workflow_id=process.id,
             workflow_name=process.name,
+            workflow_type="abinitio_graph",
             actions=actions,
             edges=edges,
             flow_diagram_ascii=flow_diagram_ascii,
