@@ -85,7 +85,7 @@ def index_from_parser_deep(
         output_dir = PathLib("./outputs")
         output_dir.mkdir(exist_ok=True)
         excel_path = output_dir / "abinitio_integrated_analysis.xlsx"
-        integrated_parser.export_to_excel_integrated(result, str(excel_path))
+        integrated_parser.export_to_excel_integrated(str(excel_path), result)
         print(f"\n📊 Excel exported: {excel_path}")
         print(f"   Sheets: GraphParameters, Components&Fields, GraphFlow, Summary, AutosysJobs")
 
