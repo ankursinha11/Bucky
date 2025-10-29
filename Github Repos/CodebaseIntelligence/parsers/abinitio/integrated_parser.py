@@ -29,17 +29,19 @@ class IntegratedAbInitioAutosysParser:
     Now supports multi-project detection!
     """
 
-    def __init__(self, use_ai: bool = True):
+    def __init__(self, use_ai: bool = True, enable_filter: bool = True):
         """
         Initialize integrated parser
 
         Args:
             use_ai: Whether to use AI analysis (default: True)
+            enable_filter: Whether to filter graphs (only parse 36 critical graphs) (default: True)
         """
-        self.base_parser = AbInitioParser()  # For Excel export
+        self.base_parser = AbInitioParser(enable_filter=enable_filter)  # For Excel export
         self.deep_parser = DeepAbInitioParserMultiRepo(use_ai=use_ai)  # For indexing
         self.autosys_parser = AutosysParser()
         self.use_ai = use_ai
+        self.enable_filter = enable_filter
 
     def parse_combined(
         self,
@@ -90,8 +92,19 @@ class IntegratedAbInitioAutosysParser:
         logger.info(f"📦 STEP 2: Parsing Ab Initio with Autosys context: {abinitio_path}")
 
         # Base parser for Excel export
-        base_result = self.base_parser.parse_directory(abinitio_path)
-        logger.info(f"   ✓ Base parsing: {len(base_result['processes'])} Ab Initio graphs")
+        # IMPORTANT: Parse ALL graphs first for complete GraphFlow, filter later for Excel
+        if self.enable_filter:
+            logger.info(f"   Strategy: Parse ALL graphs → Complete GraphFlow → Filter for Excel export")
+            # Temporarily disable filter for parsing
+            original_filter_state = self.base_parser.enable_filter
+            self.base_parser.enable_filter = False
+            base_result = self.base_parser.parse_directory(abinitio_path)
+            # Restore filter state (will be used during Excel export)
+            self.base_parser.enable_filter = original_filter_state
+        else:
+            base_result = self.base_parser.parse_directory(abinitio_path)
+
+        logger.info(f"   ✓ Base parsing: {len(base_result['processes'])} Ab Initio graphs (ALL parsed for GraphFlow)")
 
         # Deep parser for indexing (with multi-repo support!)
         deep_result = self.deep_parser.parse_directory(abinitio_path)
@@ -444,6 +457,14 @@ Provide:
 
         logger.info(f"Exporting integrated results to Excel: {output_path}")
 
+        # Filter raw_mp_data if filter is enabled
+        raw_mp_data = integrated_result.get("raw_mp_data", [])
+        if self.enable_filter:
+            from .graph_filter_config import is_graph_included
+            original_count = len(raw_mp_data)
+            raw_mp_data = [mp for mp in raw_mp_data if is_graph_included(mp.get("file_name", ""))]
+            logger.info(f"📊 Graph filter applied: {len(raw_mp_data)} of {original_count} graphs will be exported to Excel")
+
         # Check if we have multiple projects
         repositories = integrated_result.get("repositories", [])
         output_path_obj = Path(output_path)
@@ -451,9 +472,9 @@ Provide:
         if len(repositories) > 1:
             logger.info(f"📊 Detected {len(repositories)} projects - creating separate Excel files")
 
-            # Group raw_mp_data by project
+            # Group raw_mp_data by project (using filtered data)
             project_data_map = self._group_mp_data_by_project(
-                integrated_result.get("raw_mp_data", []),
+                raw_mp_data,
                 repositories
             )
 
@@ -486,8 +507,8 @@ Provide:
             # Single project - use original method
             logger.info("📊 Single project - creating one Excel file")
 
-            # Export Ab Initio data (creates 4 sheets)
-            self.base_parser.raw_mp_data = integrated_result.get("raw_mp_data", [])
+            # Export Ab Initio data (creates 4 sheets) - using filtered data
+            self.base_parser.raw_mp_data = raw_mp_data
             self.base_parser.export_to_excel(output_path)
 
             # Add Autosys sheet if available
