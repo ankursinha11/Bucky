@@ -434,17 +434,11 @@ class CompleteHadoopAnalyzer:
             return 0
 
     def _classify_pipeline_length(self, scripts: int, loc: int, actions: int, tables: int) -> str:
-        """Classify pipeline size"""
-        script_score = min(scripts / 5, 1.0)
-        loc_score = min(loc / 1500, 1.0)
-        action_score = min(actions / 8, 1.0)
-        table_score = min(tables / 5, 1.0)
-        
-        complexity = (script_score * 0.3 + loc_score * 0.3 + action_score * 0.2 + table_score * 0.2)
-        
-        if complexity <= 0.35:
+        """Classify pipeline size based on number of scripts"""
+        # Primary classification based on script count
+        if scripts <= 2:
             return "Small"
-        elif complexity <= 0.65:
+        elif scripts <= 6:
             return "Medium"
         else:
             return "Big Pipeline"
