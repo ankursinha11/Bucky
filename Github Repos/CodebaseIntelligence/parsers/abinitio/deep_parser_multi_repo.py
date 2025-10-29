@@ -105,7 +105,8 @@ class DeepAbInitioParserMultiRepo(DeepAbInitioParser):
         Returns:
             Dict mapping project_name -> {processes, components, path}
         """
-        project_groups = defaultdict(lambda: {"processes": [], "components": set(), "path": None})
+        # Use list for components, NOT set!
+        project_groups = defaultdict(lambda: {"processes": [], "components": [], "path": None})
 
         # Detect project folders
         detected_projects = self._detect_project_folders(base_path)
@@ -114,8 +115,8 @@ class DeepAbInitioParserMultiRepo(DeepAbInitioParser):
             # No clear project structure - treat as single project
             project_name = Path(base_path).name
             project_groups[project_name] = {
-                "processes": processes,
-                "components": components,
+                "processes": list(processes),
+                "components": list(components),
                 "path": base_path
             }
             return dict(project_groups)
@@ -126,6 +127,7 @@ class DeepAbInitioParserMultiRepo(DeepAbInitioParser):
             project_name = self._identify_project_from_path(file_path, detected_projects, base_path)
 
             if project_name:
+                # Use append for list
                 project_groups[project_name]["processes"].append(process)
                 if not project_groups[project_name]["path"]:
                     # Extract project directory path
@@ -134,17 +136,19 @@ class DeepAbInitioParserMultiRepo(DeepAbInitioParser):
                     )
 
         # Group components by project (match with process)
-        for component in components:
-            # Find which project this component belongs to
-            process_id = component.process_id
-            for project_name, group in project_groups.items():
-                if any(p.id == process_id for p in group["processes"]):
-                    project_groups[project_name]["components"].add(component)
-                    break
+        # Build a process_id to project mapping for faster lookup
+        process_to_project = {}
+        for project_name, group in project_groups.items():
+            for process in group["processes"]:
+                process_to_project[process.id] = project_name
 
-        # Convert sets to lists
-        for project_name in project_groups:
-            project_groups[project_name]["components"] = list(project_groups[project_name]["components"])
+        # Now assign components to projects
+        for component in components:
+            process_id = component.process_id
+            if process_id in process_to_project:
+                project_name = process_to_project[process_id]
+                # Use append for list, NOT add!
+                project_groups[project_name]["components"].append(component)
 
         # Remove empty projects
         project_groups = {
