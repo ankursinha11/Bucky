@@ -180,16 +180,14 @@ class DeepAbInitioParser:
             id=f"abinitio_repo_{repo_name}_{repo_hash}",
             name=repo_name,
             repo_type=RepositoryType.ABINITIO,
+            base_path=path,
             total_workflows=len(processes),
             total_scripts=len(components),  # Components are like scripts
+            total_components=len(components),
             business_domains=business_domains,
-            metadata={
-                "source_path": path,
-                "transform_components": transform_count,
-                "input_components": input_count,
-                "output_components": output_count,
-                "total_components": len(components),
-            }
+            technologies=["Ab Initio GDE", "Co>Operating System", "Data Profiler"],
+            description=f"Ab Initio repository with {len(processes)} graphs, {len(components)} components "
+                       f"({transform_count} transforms, {input_count} inputs, {output_count} outputs)",
         )
 
         logger.info(f"Created Repository: {repository.name} with {len(processes)} graphs")
