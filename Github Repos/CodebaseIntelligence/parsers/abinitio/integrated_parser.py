@@ -94,20 +94,18 @@ class IntegratedAbInitioAutosysParser:
         # Base parser for Excel export
         # IMPORTANT: Parse ALL graphs first for complete GraphFlow, filter later for Excel
         if self.enable_filter:
-            logger.info(f"   Strategy: Parse ALL graphs → Complete GraphFlow → Filter for Excel export")
-            # Temporarily disable filter for parsing
-            original_filter_state = self.base_parser.enable_filter
-            self.base_parser.enable_filter = False
+            logger.info(f"   Strategy: Parse ONLY 36 critical graphs for efficiency")
+            # Keep filter enabled for both Excel AND indexing
             base_result = self.base_parser.parse_directory(abinitio_path)
-            # Restore filter state (will be used during Excel export)
-            self.base_parser.enable_filter = original_filter_state
         else:
+            logger.info(f"   Strategy: Parse ALL graphs (no filtering)")
             base_result = self.base_parser.parse_directory(abinitio_path)
 
-        logger.info(f"   ✓ Base parsing: {len(base_result['processes'])} Ab Initio graphs (ALL parsed for GraphFlow)")
+        logger.info(f"   ✓ Base parsing: {len(base_result['processes'])} Ab Initio graphs, {len(base_result['components'])} components")
 
         # Deep parser for indexing (with multi-repo support!)
         # Use pre-parsed base result to avoid duplicate parsing
+        logger.info(f"   🔧 Passing base result to deep parser (avoiding duplicate parsing)...")
         deep_result = self.deep_parser.parse_from_base_result(base_result, abinitio_path)
         logger.info(f"   ✓ Deep parsing: {len(deep_result.get('workflow_flows', []))} workflows, "
                    f"{len(deep_result.get('script_logics', []))} scripts")
