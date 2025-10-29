@@ -21,6 +21,7 @@ from parsers.custom import CustomDocumentParser
 from parsers.hadoop.deep_parser_multi_repo import DeepHadoopParserMultiRepo
 from parsers.databricks.deep_parser_multi_repo import DeepDatabricksParserMultiRepo
 from parsers.abinitio.deep_parser import DeepAbInitioParser
+from parsers.abinitio.deep_parser_multi_repo import DeepAbInitioParserMultiRepo
 from parsers.abinitio.integrated_parser import IntegratedAbInitioAutosysParser
 
 
@@ -53,7 +54,7 @@ def index_from_parser_deep(
     deep_parser_map = {
         'hadoop': DeepHadoopParserMultiRepo,
         'databricks': DeepDatabricksParserMultiRepo,
-        'abinitio': DeepAbInitioParser,
+        'abinitio': DeepAbInitioParserMultiRepo,  # Now supports multi-project detection!
     }
 
     if parser_type not in deep_parser_map:
