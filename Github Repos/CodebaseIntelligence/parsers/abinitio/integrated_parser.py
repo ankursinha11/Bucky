@@ -107,7 +107,8 @@ class IntegratedAbInitioAutosysParser:
         logger.info(f"   ✓ Base parsing: {len(base_result['processes'])} Ab Initio graphs (ALL parsed for GraphFlow)")
 
         # Deep parser for indexing (with multi-repo support!)
-        deep_result = self.deep_parser.parse_directory(abinitio_path)
+        # Use pre-parsed base result to avoid duplicate parsing
+        deep_result = self.deep_parser.parse_from_base_result(base_result, abinitio_path)
         logger.info(f"   ✓ Deep parsing: {len(deep_result.get('workflow_flows', []))} workflows, "
                    f"{len(deep_result.get('script_logics', []))} scripts")
 
