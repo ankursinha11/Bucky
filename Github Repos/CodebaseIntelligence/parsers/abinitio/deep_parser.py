@@ -255,8 +255,8 @@ class DeepAbInitioParser:
                 action_type=action_type,
                 script_path=None,  # Ab Initio components are embedded
                 script_content_id=f"{process.id}_{comp.get('component_id', '')}",
-                inputs=[],
-                outputs=[],
+                input_tables=[],
+                output_tables=[],
                 parameters={}
             )
             actions.append(action)
@@ -267,8 +267,9 @@ class DeepAbInitioParser:
 
         for flow in graph_flow:
             edge = FlowEdge(
-                source_id=flow.get("source_component_id", ""),
-                target_id=flow.get("target_component_id", ""),
+                edge_id=f"{flow.get('source_component_id', '')}_{flow.get('target_component_id', '')}",
+                from_action=flow.get("source_component_id", ""),
+                to_action=flow.get("target_component_id", ""),
                 edge_type="data_flow"
             )
             edges.append(edge)
@@ -552,15 +553,15 @@ class DeepAbInitioParser:
         # Create adjacency map
         adj_map = {}
         for edge in edges:
-            if edge.source_id not in adj_map:
-                adj_map[edge.source_id] = []
-            adj_map[edge.source_id].append(edge.target_id)
+            if edge.from_action not in adj_map:
+                adj_map[edge.from_action] = []
+            adj_map[edge.from_action].append(edge.to_action)
 
         # Create ID to action map
         action_map = {a.action_id: a for a in actions}
 
         # Find root nodes (no incoming edges)
-        targets = {e.target_id for e in edges}
+        targets = {e.to_action for e in edges}
         roots = [a for a in actions if a.action_id not in targets]
 
         # Build flow recursively
@@ -611,8 +612,8 @@ class DeepAbInitioParser:
 
         # Add edges
         for edge in edges:
-            source = edge.source_id.replace("-", "_")
-            target = edge.target_id.replace("-", "_")
+            source = edge.from_action.replace("-", "_")
+            target = edge.to_action.replace("-", "_")
             lines.append(f"    {source} --> {target}")
 
         return "\n".join(lines)
