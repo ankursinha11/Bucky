@@ -486,9 +486,10 @@ Provide:
 
                 logger.info(f"   Exporting project: {project_name} ({len(project_mp_data)} graphs)")
 
-                # Export this project's data
+                # Export this project's data with enhanced flows
                 self.base_parser.raw_mp_data = project_mp_data
-                self.base_parser.export_to_excel(str(project_excel_path))
+                enhanced_flows = integrated_result.get("enhanced_flows", [])
+                self.base_parser.export_to_excel(str(project_excel_path), enhanced_flows=enhanced_flows)
 
                 excel_files.append(str(project_excel_path))
 
@@ -507,9 +508,10 @@ Provide:
             # Single project - use original method
             logger.info("📊 Single project - creating one Excel file")
 
-            # Export Ab Initio data (creates 4 sheets) - using filtered data
+            # Export Ab Initio data (creates 4 sheets) - using filtered data with enhanced flows
             self.base_parser.raw_mp_data = raw_mp_data
-            self.base_parser.export_to_excel(output_path)
+            enhanced_flows = integrated_result.get("enhanced_flows", [])
+            self.base_parser.export_to_excel(output_path, enhanced_flows=enhanced_flows)
 
             # Add Autosys sheet if available
             if integrated_result.get("autosys_jobs"):
