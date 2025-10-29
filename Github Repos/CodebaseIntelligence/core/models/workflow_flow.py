@@ -11,6 +11,7 @@ from enum import Enum
 
 class ActionType(Enum):
     """Type of action in workflow"""
+    # Hadoop/Databricks
     PIG_SCRIPT = "pig"
     SPARK_JOB = "spark"
     HIVE_QUERY = "hive"
@@ -20,6 +21,19 @@ class ActionType(Enum):
     SQOOP_IMPORT = "sqoop"
     NOTEBOOK = "notebook"
     SUB_WORKFLOW = "sub_workflow"
+
+    # Ab Initio specific
+    INPUT = "input"
+    OUTPUT = "output"
+    TRANSFORM = "transform"
+    JOIN = "join"
+    FILTER = "filter"
+    AGGREGATE = "aggregate"
+    SORT = "sort"
+    LOOKUP = "lookup"
+    SCRIPT = "script"
+
+    # Generic
     UNKNOWN = "unknown"
 
 
