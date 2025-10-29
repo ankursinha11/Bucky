@@ -21,6 +21,7 @@ from parsers.custom import CustomDocumentParser
 from parsers.hadoop.deep_parser_multi_repo import DeepHadoopParserMultiRepo
 from parsers.databricks.deep_parser_multi_repo import DeepDatabricksParserMultiRepo
 from parsers.abinitio.deep_parser import DeepAbInitioParser
+from parsers.abinitio.integrated_parser import IntegratedAbInitioAutosysParser
 
 
 def index_from_parser_deep(
@@ -28,6 +29,7 @@ def index_from_parser_deep(
     source_path: str,
     vector_db_path: str = "./outputs/vector_db",
     use_ai: bool = True,
+    autosys_path: str = None,
 ):
     """
     DEEP PARSING with AI analysis and 3-tier indexing
@@ -37,6 +39,7 @@ def index_from_parser_deep(
         source_path: Path to source
         vector_db_path: Vector DB path
         use_ai: Whether to use AI analysis (default True)
+        autosys_path: Path to Autosys jobs folder (for Ab Initio only)
     """
     print("\n" + "=" * 70)
     print("  🚀 DEEP CODEBASE ANALYSIS - 3-Tier + AI")
@@ -61,9 +64,34 @@ def index_from_parser_deep(
 
     print(f"📂 Deep parsing {parser_type.upper()} repository: {source_path}\n")
 
-    # Use deep parser
-    deep_parser = deep_parser_map[parser_type](use_ai=use_ai)
-    result = deep_parser.parse_directory(source_path)
+    # Special handling for Ab Initio with Autosys integration
+    if parser_type == 'abinitio' and autosys_path:
+        print(f"🔗 Ab Initio + Autosys INTEGRATED PARSING")
+        print(f"   Ab Initio path: {source_path}")
+        print(f"   Autosys path:   {autosys_path}")
+        print(f"   Strategy: Parse Autosys FIRST → Then Ab Initio with context\n")
+
+        # Use integrated parser
+        integrated_parser = IntegratedAbInitioAutosysParser()
+        result = integrated_parser.parse_combined(
+            abinitio_path=source_path,
+            autosys_path=autosys_path,
+            use_ai=use_ai
+        )
+
+        # Export to Excel
+        from pathlib import Path as PathLib
+        output_dir = PathLib("./outputs")
+        output_dir.mkdir(exist_ok=True)
+        excel_path = output_dir / "abinitio_integrated_analysis.xlsx"
+        integrated_parser.export_to_excel_integrated(result, str(excel_path))
+        print(f"\n📊 Excel exported: {excel_path}")
+        print(f"   Sheets: GraphParameters, Components&Fields, GraphFlow, Summary, AutosysJobs")
+
+    else:
+        # Use standard deep parser
+        deep_parser = deep_parser_map[parser_type](use_ai=use_ai)
+        result = deep_parser.parse_directory(source_path)
 
     repository = result.get("repository")
     repositories = result.get("repositories", [])  # Multi-app support
@@ -409,12 +437,32 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # 🚀 DEEP PARSING with AI analysis (RECOMMENDED for Hadoop!)
+  # 🚀 DEEP PARSING with AI analysis (RECOMMENDED!)
+
+  # Hadoop
   python index_codebase.py --parser hadoop --source /path/to/hadoop --deep
 
+  # Databricks
+  python index_codebase.py --parser databricks --source /path/to/notebooks --deep
+
+  # Ab Initio (with Autosys integration for accurate GraphFlow)
+  python index_codebase.py --parser abinitio --source /path/to/abinitio --autosys /path/to/autosys_jobs --deep
+
   This will:
+    ✓ Parse Autosys jobs FIRST (job dependencies, execution order)
+    ✓ Parse Ab Initio graphs with Autosys context
+    ✓ Create accurate GraphFlow (not empty!)
+    ✓ Use AI to understand business logic with full context
+    ✓ Generate Excel with 5 sheets (including AutosysJobs)
+    ✓ Index everything to vector DB
+    → Result: Chatbot understands workflow execution, dependencies, and business logic!
+
+  # Ab Initio without Autosys (basic parsing)
+  python index_codebase.py --parser abinitio --source /path/to/abinitio --deep
+
+  Deep parsing features:
     ✓ Parse workflow execution flows
-    ✓ Extract script logic (Pig, Spark, Hive)
+    ✓ Extract script logic (Pig, Spark, Hive, Ab Initio components)
     ✓ Identify transformations (FILTER, JOIN, GROUP BY, etc.)
     ✓ Track column-level data lineage
     ✓ Use GPT-4 to understand business logic
@@ -436,12 +484,13 @@ Examples:
   python index_codebase.py --json-file output.json
 
 Supported parsers:
-  - abinitio: Ab Initio .mp files (supports --deep!)
+  - abinitio: Ab Initio .mp files (supports --deep + --autosys!)
   - hadoop: Oozie workflows, coordinators (supports --deep!)
   - databricks: Notebooks (.py, .sql, .ipynb) (supports --deep!)
   - custom: Excel, Word, PDF, CSV, text files
 
 Deep parsing supports: Hadoop, Databricks, Ab Initio
+Ab Initio special: Use --autosys for accurate GraphFlow extraction!
         """
     )
 
@@ -466,6 +515,11 @@ Deep parsing supports: Hadoop, Databricks, Ab Initio
         "--no-ai",
         action="store_true",
         help="Disable AI analysis (use with --deep for logic extraction without AI)",
+    )
+    parser.add_argument(
+        "--autosys",
+        type=str,
+        help="Path to Autosys jobs folder (for Ab Initio integration - parses Autosys FIRST for accurate GraphFlow)",
     )
 
     # Advanced interface (existing, for multiple codebases)
@@ -517,6 +571,7 @@ Deep parsing supports: Hadoop, Databricks, Ab Initio
                 source_path=args.source,
                 vector_db_path=args.vector_db_path,
                 use_ai=use_ai,
+                autosys_path=args.autosys,  # Pass Autosys path if provided
             )
         else:
             index_from_parser(
