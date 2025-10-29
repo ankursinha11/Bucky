@@ -242,10 +242,10 @@ class AutosysParser:
         Extract job dependencies from condition field
 
         Autosys conditions like:
-        - success(job_a)
-        - done(job_b)
-        - failure(job_c)
-        - success(job_a) AND success(job_b)
+        - success(job_a) or s(job_a)
+        - done(job_b) or d(job_b)
+        - failure(job_c) or f(job_c)
+        - s(job_a) & s(job_b)
         """
         flows = []
 
@@ -253,17 +253,28 @@ class AutosysParser:
         if not condition:
             return flows
 
-        # Extract all referenced jobs from conditions
-        # Patterns: success(job_name), done(job_name), failure(job_name)
-        pattern = r'(success|done|failure|running|terminated|notrunning)\(([^)]+)\)'
-
-        matches = re.findall(pattern, condition)
-
         job_name = job_data.get("job_name", "")
 
-        for match in matches:
-            condition_type = match[0]  # success, done, failure, etc.
+        # Pattern 1: Shorthand notation - s(), f(), d(), r(), t(), n()
+        # Most common in your environment
+        shorthand_pattern = r'([sfdrntp])\(([^)]+)\)'
+        shorthand_matches = re.findall(shorthand_pattern, condition, re.IGNORECASE)
+
+        shorthand_map = {
+            's': 'success',
+            'f': 'failure',
+            'd': 'done',
+            'r': 'running',
+            'n': 'notrunning',
+            't': 'terminated',
+            'p': 'pending'
+        }
+
+        for match in shorthand_matches:
+            shorthand = match[0].lower()
             dependent_job = match[1].strip()
+
+            condition_type = shorthand_map.get(shorthand, shorthand)
 
             flow = {
                 "source_job": dependent_job,
@@ -273,6 +284,25 @@ class AutosysParser:
             }
 
             flows.append(flow)
+
+        # Pattern 2: Full word notation - success(), failure(), done()
+        # For compatibility with other Autosys environments
+        if not shorthand_matches:  # Only check if shorthand didn't match
+            full_pattern = r'(success|done|failure|running|terminated|notrunning)\(([^)]+)\)'
+            full_matches = re.findall(full_pattern, condition, re.IGNORECASE)
+
+            for match in full_matches:
+                condition_type = match[0].lower()
+                dependent_job = match[1].strip()
+
+                flow = {
+                    "source_job": dependent_job,
+                    "target_job": job_name,
+                    "condition_type": condition_type,
+                    "condition_full": condition,
+                }
+
+                flows.append(flow)
 
         return flows
 
