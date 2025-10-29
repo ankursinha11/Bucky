@@ -62,11 +62,25 @@ class DeepAbInitioParserMultiRepo(DeepAbInitioParser):
 
         # First, parse with base parser to get all processes/components
         base_result = self.base_parser.parse_directory(abinitio_path)
+
+        return self.parse_from_base_result(base_result, abinitio_path)
+
+    def parse_from_base_result(self, base_result: Dict[str, Any], abinitio_path: str) -> Dict[str, Any]:
+        """
+        Parse from pre-parsed base result (avoids duplicate parsing)
+
+        Args:
+            base_result: Pre-parsed base result from AbInitioParser
+            abinitio_path: Path to Ab Initio root directory
+
+        Returns:
+            Dict with repositories (list), workflow_flows, script_logics
+        """
         processes = base_result.get("processes", [])
         components = base_result.get("components", [])
         raw_mp_data = base_result.get("raw_mp_data", [])
 
-        logger.info(f"Base parsing: {len(processes)} graphs, {len(components)} components")
+        logger.info(f"Deep parsing from base result: {len(processes)} graphs, {len(components)} components")
 
         # Try to detect multiple projects
         project_groups = self._group_by_projects(processes, components, abinitio_path)
@@ -80,7 +94,8 @@ class DeepAbInitioParserMultiRepo(DeepAbInitioParser):
         else:
             # Single project - use parent class behavior
             logger.info("Single Ab Initio project detected - using standard deep parsing")
-            return super().parse_directory(abinitio_path)
+            # Create deep structures from base result
+            return self._parse_single_project(processes, components, raw_mp_data, abinitio_path)
 
     def _group_by_projects(
         self,
@@ -116,7 +131,7 @@ class DeepAbInitioParserMultiRepo(DeepAbInitioParser):
             project_name = Path(base_path).name
             project_groups[project_name] = {
                 "processes": list(processes),
-                "components": list(components), 
+                "components": list(components),
                 "path": base_path
             }
             return dict(project_groups)
@@ -294,6 +309,90 @@ class DeepAbInitioParserMultiRepo(DeepAbInitioParser):
             Project directory path
         """
         return os.path.join(base_path, project_name)
+
+    def _parse_single_project(
+        self,
+        processes: List,
+        components: List,
+        raw_mp_data: List[Dict],
+        base_path: str
+    ) -> Dict[str, Any]:
+        """
+        Parse single Ab Initio project from pre-parsed data
+
+        Args:
+            processes: List of Process objects
+            components: List of Component objects
+            raw_mp_data: Raw MP data from base parser
+            base_path: Base directory path
+
+        Returns:
+            Dict with repository, workflow_flows, script_logics
+        """
+        logger.info(f"Creating single Ab Initio repository from {len(processes)} graphs...")
+
+        # Create Tier 1 - Repository
+        repository = self._create_repository(base_path, processes, components)
+
+        # Create Tier 2 - WorkflowFlows
+        workflow_flows = []
+        for process in processes:
+            # Find matching raw MP data
+            mp_data = {}
+            for data in raw_mp_data:
+                if data.get("graph_name") == process.name or data.get("file_path") == process.file_path:
+                    mp_data = data
+                    break
+
+            workflow_flow = self._create_workflow_flow(process, mp_data)
+            workflow_flows.append(workflow_flow)
+
+        # Create Tier 3 - ScriptLogics
+        script_logics = []
+        for process in processes:
+            process_components = [c for c in components if c.process_id == process.id]
+
+            for component in process_components:
+                script_logic = self._create_script_logic(
+                    component,
+                    process,
+                    base_path
+                )
+                if script_logic:
+                    script_logics.append(script_logic)
+
+        logger.info(f"✓ Created single repository: {repository.name}")
+        logger.info(f"   Workflows: {len(workflow_flows)}")
+        logger.info(f"   Scripts: {len(script_logics)}")
+
+        # AI Analysis (if enabled)
+        if self.use_ai and self.ai_analyzer:
+            logger.info("\n🤖 Running AI analysis...")
+
+            try:
+                repo_analysis = self.ai_analyzer.analyze_repository(repository)
+                repository.ai_summary = repo_analysis.get("business_purpose", "")
+                repository.ai_architecture = repo_analysis.get("architecture_summary", "")
+            except Exception as e:
+                logger.warning(f"Repository AI analysis failed: {e}")
+
+            for workflow in workflow_flows:
+                try:
+                    workflow.ai_flow_summary = self.ai_analyzer.analyze_workflow_flow(workflow)
+                except Exception as e:
+                    logger.warning(f"Workflow AI analysis failed: {e}")
+
+            for script_logic in script_logics:
+                try:
+                    self.ai_analyzer.analyze_script(script_logic)
+                except Exception as e:
+                    logger.warning(f"Script AI analysis failed: {e}")
+
+        return {
+            "repository": repository,
+            "workflow_flows": workflow_flows,
+            "script_logics": script_logics,
+        }
 
     def _parse_multiple_projects(
         self,
