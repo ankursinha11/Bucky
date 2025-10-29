@@ -313,8 +313,8 @@ class AutosysParser:
             process = Process(
                 id=process_id,
                 name=job_name,
-                system=SystemType.ABINITIO if abinitio_graph else SystemType.CUSTOM,
-                process_type=ProcessType.JOB,
+                system=SystemType.AUTOSYS,
+                process_type=ProcessType.AUTOSYS_JOB,
                 file_path=job.get("file_path", ""),
                 description=description or f"Autosys job: {job_name}",
                 component_ids=[process_id],  # Self-reference
@@ -356,14 +356,33 @@ class AutosysParser:
         - air sandbox run <graph_path>
         - /opt/abinitio/bin/air sandbox run graph.mp
         - run_graph.sh graph_name
+        - runpset.ksh -P pset_name.pset (converts to graph_name)
         """
         if not command:
             return None
+
+        # Look for runpset.ksh -P pattern (most common in your environment)
+        pset_match = re.search(r'runpset\.ksh\s+-P\s+([a-zA-Z0-9_\-]+)\.pset', command)
+        if pset_match:
+            # Extract pset name and convert to graph name
+            pset_name = pset_match.group(1)
+            # Remove .pset extension if present, add .mp
+            return pset_name
+
+        # Look for .pset file references (without runpset.ksh)
+        pset_file_match = re.search(r'([a-zA-Z0-9_\-/]+)\.pset', command)
+        if pset_file_match:
+            return pset_file_match.group(1)
 
         # Look for .mp file references
         mp_match = re.search(r'([a-zA-Z0-9_\-/]+\.mp)', command)
         if mp_match:
             return mp_match.group(1)
+
+        # Look for .plan file references (Data Ingestion graphs)
+        plan_match = re.search(r'([a-zA-Z0-9_\-/]+\.plan)', command)
+        if plan_match:
+            return plan_match.group(1)
 
         # Look for air sandbox run command
         air_match = re.search(r'air\s+sandbox\s+run\s+([a-zA-Z0-9_\-/]+)', command)
