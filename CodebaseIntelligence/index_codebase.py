@@ -13,10 +13,153 @@ from loguru import logger
 sys.path.insert(0, str(Path(__file__).parent))
 
 from services.codebase_indexer import CodebaseIndexer
+from services.deep_indexer import DeepIndexer
 from parsers.abinitio import AbInitioParser
 from parsers.hadoop import HadoopParser
 from parsers.databricks import DatabricksParser
 from parsers.custom import CustomDocumentParser
+from parsers.hadoop.deep_parser_multi_repo import DeepHadoopParserMultiRepo
+from parsers.databricks.deep_parser_multi_repo import DeepDatabricksParserMultiRepo
+from parsers.abinitio.deep_parser import DeepAbInitioParser
+from parsers.abinitio.integrated_parser import IntegratedAbInitioAutosysParser
+
+
+def index_from_parser_deep(
+    parser_type: str,
+    source_path: str,
+    vector_db_path: str = "./outputs/vector_db",
+    use_ai: bool = True,
+    autosys_path: str = None,
+):
+    """
+    DEEP PARSING with AI analysis and 3-tier indexing
+
+    Args:
+        parser_type: Type of parser
+        source_path: Path to source
+        vector_db_path: Vector DB path
+        use_ai: Whether to use AI analysis (default True)
+        autosys_path: Path to Autosys jobs folder (for Ab Initio only)
+    """
+    print("\n" + "=" * 70)
+    print("  🚀 DEEP CODEBASE ANALYSIS - 3-Tier + AI")
+    print("=" * 70 + "\n")
+
+    if not Path(source_path).exists():
+        print(f"❌ Source path not found: {source_path}")
+        sys.exit(1)
+
+    # Select deep parser based on type
+    deep_parser_map = {
+        'hadoop': DeepHadoopParserMultiRepo,
+        'databricks': DeepDatabricksParserMultiRepo,
+        'abinitio': DeepAbInitioParser,
+    }
+
+    if parser_type not in deep_parser_map:
+        print(f"⚠️  Deep parsing not yet supported for {parser_type}")
+        print(f"   Supported: {', '.join(deep_parser_map.keys())}")
+        print(f"   Falling back to standard parsing...")
+        return index_from_parser(parser_type, source_path, vector_db_path)
+
+    print(f"📂 Deep parsing {parser_type.upper()} repository: {source_path}\n")
+
+    # Special handling for Ab Initio with Autosys integration
+    if parser_type == 'abinitio' and autosys_path:
+        print(f"🔗 Ab Initio + Autosys INTEGRATED PARSING")
+        print(f"   Ab Initio path: {source_path}")
+        print(f"   Autosys path:   {autosys_path}")
+        print(f"   Strategy: Parse Autosys FIRST → Then Ab Initio with context\n")
+
+        # Use integrated parser
+        integrated_parser = IntegratedAbInitioAutosysParser()
+        result = integrated_parser.parse_combined(
+            abinitio_path=source_path,
+            autosys_path=autosys_path,
+            use_ai=use_ai
+        )
+
+        # Export to Excel
+        from pathlib import Path as PathLib
+        output_dir = PathLib("./outputs")
+        output_dir.mkdir(exist_ok=True)
+        excel_path = output_dir / "abinitio_integrated_analysis.xlsx"
+        integrated_parser.export_to_excel_integrated(result, str(excel_path))
+        print(f"\n📊 Excel exported: {excel_path}")
+        print(f"   Sheets: GraphParameters, Components&Fields, GraphFlow, Summary, AutosysJobs")
+
+    else:
+        # Use standard deep parser
+        deep_parser = deep_parser_map[parser_type](use_ai=use_ai)
+        result = deep_parser.parse_directory(source_path)
+
+    repository = result.get("repository")
+    repositories = result.get("repositories", [])  # Multi-app support
+    workflow_flows = result.get("workflow_flows", [])
+    script_logics = result.get("script_logics", [])
+
+    print(f"\n✓ Deep parsing complete!")
+
+    # Show appropriate message for single vs multiple repositories
+    if repositories and len(repositories) > 1:
+        print(f"   📦 Applications: {len(repositories)}")
+        for repo in repositories:
+            print(f"      - {repo.name}")
+    elif repository:
+        print(f"   📊 Tier 1 (Repository): {repository.name}")
+
+    print(f"   📊 Tier 2 (Workflows): {len(workflow_flows)} workflows")
+    print(f"   📊 Tier 3 (Scripts): {len(script_logics)} scripts analyzed")
+    print(f"   🔍 Total transformations: {sum(len(s.transformations) for s in script_logics)}")
+    if use_ai:
+        print(f"   🤖 AI analysis: ENABLED")
+
+    # Index with deep indexer
+    print("\n" + "=" * 70)
+    print("📊 Indexing into vector database (3-tier structure)...")
+    print("=" * 70)
+
+    try:
+        indexer = DeepIndexer(vector_db_path=vector_db_path)
+        counts = indexer.index_deep_analysis(
+            repository=repository,
+            repositories=repositories if repositories else None,
+            workflow_flows=workflow_flows,
+            script_logics=script_logics,
+        )
+
+        print("\n✅ Deep indexing complete!")
+        print(f"   📁 Tier 1 (Repository):      {counts.get('tier1_repository', 0)}")
+        print(f"   📁 Tier 2 (Workflows):        {counts.get('tier2_workflows', 0)}")
+        print(f"   📁 Tier 3 (Scripts):          {counts.get('tier3_scripts', 0)}")
+        print(f"   📁 Tier 3 (Transformations):  {counts.get('tier3_transformations', 0)}")
+        print(f"   📁 Tier 3 (Lineages):         {counts.get('tier3_lineage', 0)}")
+
+        total_docs = sum(counts.values())
+        print(f"\n   📊 Total documents: {total_docs}")
+
+        stats = indexer.get_stats()
+        db_stats = stats.get("vector_db", {})
+        print(f"\n📁 Vector Database: {vector_db_path}")
+        print(f"   Collections: {db_stats.get('collection_count', 0)}")
+        print(f"   Documents:   {db_stats.get('document_count', 0)}")
+
+        print("\n🚀 Ready for INTELLIGENT chatbot queries!")
+        print("   The chatbot now understands:")
+        print("   ✓ Repository-level architecture")
+        print("   ✓ Workflow execution flows")
+        print("   ✓ Script logic and transformations")
+        print("   ✓ Business purposes (AI-analyzed)")
+        print("   ✓ Column-level data lineage")
+        print("\n   Run: python chatbot_cli.py")
+        print()
+
+    except Exception as e:
+        logger.error(f"Indexing error: {e}")
+        print(f"\n❌ Indexing failed: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
 
 
 def index_from_parser(
@@ -26,6 +169,7 @@ def index_from_parser(
 ):
     """
     Parse codebase using specified parser and index into vector database
+    (BASIC parsing - use --deep for intelligent analysis)
 
     Args:
         parser_type: Type of parser (abinitio, hadoop, databricks, custom)
@@ -293,7 +437,42 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Simple interface (recommended)
+  # 🚀 DEEP PARSING with AI analysis (RECOMMENDED!)
+
+  # Hadoop
+  python index_codebase.py --parser hadoop --source /path/to/hadoop --deep
+
+  # Databricks
+  python index_codebase.py --parser databricks --source /path/to/notebooks --deep
+
+  # Ab Initio (with Autosys integration for accurate GraphFlow)
+  python index_codebase.py --parser abinitio --source /path/to/abinitio --autosys /path/to/autosys_jobs --deep
+
+  This will:
+    ✓ Parse Autosys jobs FIRST (job dependencies, execution order)
+    ✓ Parse Ab Initio graphs with Autosys context
+    ✓ Create accurate GraphFlow (not empty!)
+    ✓ Use AI to understand business logic with full context
+    ✓ Generate Excel with 5 sheets (including AutosysJobs)
+    ✓ Index everything to vector DB
+    → Result: Chatbot understands workflow execution, dependencies, and business logic!
+
+  # Ab Initio without Autosys (basic parsing)
+  python index_codebase.py --parser abinitio --source /path/to/abinitio --deep
+
+  Deep parsing features:
+    ✓ Parse workflow execution flows
+    ✓ Extract script logic (Pig, Spark, Hive, Ab Initio components)
+    ✓ Identify transformations (FILTER, JOIN, GROUP BY, etc.)
+    ✓ Track column-level data lineage
+    ✓ Use GPT-4 to understand business logic
+    ✓ Generate flow diagrams
+    → Result: INTELLIGENT chatbot that understands your code!
+
+  # Deep parsing without AI (logic extraction only)
+  python index_codebase.py --parser hadoop --source /path/to/hadoop --deep --no-ai
+
+  # Basic parsing (fast but less intelligent)
   python index_codebase.py --parser hadoop --source /path/to/hadoop
   python index_codebase.py --parser databricks --source /path/to/notebooks
   python index_codebase.py --parser custom --source ./custom_documents
@@ -305,10 +484,13 @@ Examples:
   python index_codebase.py --json-file output.json
 
 Supported parsers:
-  - abinitio: Ab Initio .mp files
-  - hadoop: Oozie workflows, coordinators
-  - databricks: Notebooks (.py, .sql, .ipynb)
+  - abinitio: Ab Initio .mp files (supports --deep + --autosys!)
+  - hadoop: Oozie workflows, coordinators (supports --deep!)
+  - databricks: Notebooks (.py, .sql, .ipynb) (supports --deep!)
   - custom: Excel, Word, PDF, CSV, text files
+
+Deep parsing supports: Hadoop, Databricks, Ab Initio
+Ab Initio special: Use --autosys for accurate GraphFlow extraction!
         """
     )
 
@@ -323,6 +505,21 @@ Supported parsers:
         "--source",
         type=str,
         help="Source directory path (use with --parser)",
+    )
+    parser.add_argument(
+        "--deep",
+        action="store_true",
+        help="🚀 Enable DEEP parsing with AI analysis (3-tier indexing, script logic extraction, AI insights)",
+    )
+    parser.add_argument(
+        "--no-ai",
+        action="store_true",
+        help="Disable AI analysis (use with --deep for logic extraction without AI)",
+    )
+    parser.add_argument(
+        "--autosys",
+        type=str,
+        help="Path to Autosys jobs folder (for Ab Initio integration - parses Autosys FIRST for accurate GraphFlow)",
     )
 
     # Advanced interface (existing, for multiple codebases)
@@ -366,11 +563,22 @@ Supported parsers:
 
     # Simple interface: --parser and --source
     if args.parser and args.source:
-        index_from_parser(
-            parser_type=args.parser,
-            source_path=args.source,
-            vector_db_path=args.vector_db_path,
-        )
+        # Check if deep parsing requested
+        if args.deep:
+            use_ai = not args.no_ai  # Use AI unless --no-ai specified
+            index_from_parser_deep(
+                parser_type=args.parser,
+                source_path=args.source,
+                vector_db_path=args.vector_db_path,
+                use_ai=use_ai,
+                autosys_path=args.autosys,  # Pass Autosys path if provided
+            )
+        else:
+            index_from_parser(
+                parser_type=args.parser,
+                source_path=args.source,
+                vector_db_path=args.vector_db_path,
+            )
 
     # JSON mode
     elif args.json_file:
