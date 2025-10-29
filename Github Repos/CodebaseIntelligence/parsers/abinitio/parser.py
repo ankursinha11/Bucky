@@ -12,6 +12,7 @@ from loguru import logger
 from core.models import Process, Component, ProcessType, ComponentType, SystemType
 from .mp_file_parser import MPFileParser
 from .patterns import get_patterns
+from .graph_filter_config import is_graph_included, get_module_for_graph, INCLUDED_GRAPHS
 
 
 class AbInitioParser:
@@ -23,13 +24,20 @@ class AbInitioParser:
     - GraphFlow extraction with component names
     - Component analysis
     - Excel-ready output format
+    - Graph filtering (only parse 36 critical graphs)
     """
 
-    def __init__(self):
-        """Initialize Ab Initio parser"""
+    def __init__(self, enable_filter: bool = True):
+        """
+        Initialize Ab Initio parser
+
+        Args:
+            enable_filter: If True, only parse graphs in INCLUDED_GRAPHS list (default: True)
+        """
         self.patterns = get_patterns()
         self.mp_parser = MPFileParser(self.patterns)
         self.raw_mp_data: List[Dict[str, Any]] = []  # Store raw MP data for Excel export
+        self.enable_filter = enable_filter
 
     def parse_directory(self, abinitio_path: str) -> Dict[str, Any]:
         """
@@ -51,6 +59,24 @@ class AbInitioParser:
         mp_files = self._find_mp_files(abinitio_path)
         logger.info(f"Found {len(mp_files)} .mp files")
 
+        # Filter graphs if enabled
+        if self.enable_filter:
+            filtered_files = []
+            skipped_count = 0
+
+            for mp_file in mp_files:
+                file_name = Path(mp_file).stem
+                if is_graph_included(file_name):
+                    filtered_files.append(mp_file)
+                else:
+                    skipped_count += 1
+
+            logger.info(f"✓ Graph filter ENABLED: {len(filtered_files)} graphs included, {skipped_count} skipped")
+            logger.info(f"   Parsing only {len(INCLUDED_GRAPHS)} critical graphs")
+            mp_files = filtered_files
+        else:
+            logger.info("Graph filter DISABLED: parsing all graphs")
+
         # Parse each .mp file
         for mp_file in mp_files:
             try:
@@ -62,9 +88,12 @@ class AbInitioParser:
                 mp_data = self.mp_parser.parse_mp_file(mp_file, content)
 
                 # Store raw data for Excel export
+                file_name = Path(mp_file).stem
                 mp_data_with_file = {
                     **mp_data,
-                    "file_name": Path(mp_file).stem,
+                    "file_name": file_name,
+                    "file_path": str(mp_file),
+                    "module": get_module_for_graph(file_name) if self.enable_filter else "Unknown",
                 }
                 self.raw_mp_data.append(mp_data_with_file)
 
@@ -265,6 +294,9 @@ class AbInitioParser:
 
         logger.info(f"Exporting to Excel: {output_path}")
 
+        # Excel row limit (leave some buffer)
+        EXCEL_MAX_ROWS = 1000000
+
         with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
             # Sheet 1: Graph Parameters (CLEAN format)
             param_data = []
@@ -281,6 +313,9 @@ class AbInitioParser:
 
             if param_data:
                 df_params = pd.DataFrame(param_data)
+                if len(df_params) > EXCEL_MAX_ROWS:
+                    logger.warning(f"GraphParameters sheet too large ({len(df_params)} rows). Truncating to {EXCEL_MAX_ROWS} rows.")
+                    df_params = df_params.head(EXCEL_MAX_ROWS)
                 df_params.to_excel(writer, sheet_name='GraphParameters', index=False)
 
             # Sheet 2: Components & Fields (CLEAN format)
@@ -303,9 +338,22 @@ class AbInitioParser:
                             "Field_Value": param.get("parameter_value", ""),
                         })
 
+                        # Stop if we hit the limit
+                        if len(component_data) >= EXCEL_MAX_ROWS:
+                            break
+                    if len(component_data) >= EXCEL_MAX_ROWS:
+                        break
+                if len(component_data) >= EXCEL_MAX_ROWS:
+                    break
+
             if component_data:
                 df_components = pd.DataFrame(component_data)
+                total_rows = len(df_components)
+                if total_rows > EXCEL_MAX_ROWS:
+                    logger.warning(f"Components&Fields sheet too large ({total_rows} rows). Truncating to {EXCEL_MAX_ROWS} rows.")
+                    df_components = df_components.head(EXCEL_MAX_ROWS)
                 df_components.to_excel(writer, sheet_name='Components&Fields', index=False)
+                logger.info(f"   Components&Fields: {len(df_components)} rows exported")
 
             # Sheet 3: GraphFlow
             flow_data = []
@@ -322,12 +370,16 @@ class AbInitioParser:
 
             if flow_data:
                 df_flow = pd.DataFrame(flow_data)
+                if len(df_flow) > EXCEL_MAX_ROWS:
+                    logger.warning(f"GraphFlow sheet too large ({len(df_flow)} rows). Truncating to {EXCEL_MAX_ROWS} rows.")
+                    df_flow = df_flow.head(EXCEL_MAX_ROWS)
                 df_flow.to_excel(writer, sheet_name='GraphFlow', index=False)
 
             # Sheet 4: Summary
             summary_data = []
             for mp_data in self.raw_mp_data:
                 summary_data.append({
+                    "Module": mp_data.get("module", "Unknown"),
                     "Graph_Name": mp_data.get("file_name", ""),
                     "Total_Components": mp_data.get("component_count", 0),
                     "Total_Parameters": len(mp_data.get("graph_parameters", [])),
