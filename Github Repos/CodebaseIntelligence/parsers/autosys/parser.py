@@ -215,9 +215,13 @@ class AutosysParser:
 
         # First line should have job name
         first_line = lines[0].strip()
-        job_name_match = re.search(r'(insert_job|update_job):\s*(.+)', first_line)
+        job_name_match = re.search(r'(insert_job|update_job):\s*([^\s]+)', first_line)
         if job_name_match:
-            job_data["job_name"] = job_name_match.group(2).strip()
+            # Clean job name - remove any trailing metadata
+            job_name = job_name_match.group(2).strip()
+            # Remove common suffixes that might be appended
+            job_name = re.sub(r'\s+(job_type|_job_type):.*$', '', job_name, flags=re.IGNORECASE)
+            job_data["job_name"] = job_name
         else:
             return None
 
