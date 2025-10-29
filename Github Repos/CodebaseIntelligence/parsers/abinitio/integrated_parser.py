@@ -439,8 +439,8 @@ Provide:
         logger.info(f"Exporting integrated results to Excel: {output_path}")
 
         # First, export Ab Initio data (creates 4 sheets)
-        self.abinitio_parser.raw_mp_data = integrated_result.get("raw_mp_data", [])
-        self.abinitio_parser.export_to_excel(output_path)
+        self.base_parser.raw_mp_data = integrated_result.get("raw_mp_data", [])
+        self.base_parser.export_to_excel(output_path)
 
         # Then, add Autosys sheet if available
         if integrated_result.get("autosys_jobs"):
