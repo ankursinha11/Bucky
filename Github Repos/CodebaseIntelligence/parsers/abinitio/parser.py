@@ -281,12 +281,13 @@ class AbInitioParser:
 
         return type_mapping.get(comp_type_str, ComponentType.UNKNOWN)
 
-    def export_to_excel(self, output_path: str):
+    def export_to_excel(self, output_path: str, enhanced_flows: List[Dict] = None):
         """
         Export parsed data to Excel with clean FAWN-style parameters
 
         Args:
             output_path: Path to output Excel file
+            enhanced_flows: Enhanced GraphFlow from Autosys dependencies (optional)
         """
         import pandas as pd
         from openpyxl import load_workbook
@@ -298,7 +299,7 @@ class AbInitioParser:
         EXCEL_MAX_ROWS = 1000000
 
         with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
-            # Sheet 1: Graph Parameters (CLEAN format)
+            # Sheet 1: Graph Parameters (CLEAN format) - ALWAYS CREATE
             param_data = []
             for mp_data in self.raw_mp_data:
                 graph_name = mp_data.get("file_name", "Unknown")
@@ -311,12 +312,18 @@ class AbInitioParser:
                         "Value": param.get("parameter_value", ""),
                     })
 
+            # Always create sheet (even if empty)
             if param_data:
                 df_params = pd.DataFrame(param_data)
                 if len(df_params) > EXCEL_MAX_ROWS:
                     logger.warning(f"GraphParameters sheet too large ({len(df_params)} rows). Truncating to {EXCEL_MAX_ROWS} rows.")
                     df_params = df_params.head(EXCEL_MAX_ROWS)
-                df_params.to_excel(writer, sheet_name='GraphParameters', index=False)
+            else:
+                # Create empty sheet with headers
+                df_params = pd.DataFrame(columns=["Graph", "Parameter", "Value"])
+                logger.info("GraphParameters sheet is empty (no graph-level parameters found)")
+
+            df_params.to_excel(writer, sheet_name='GraphParameters', index=False)
 
             # Sheet 2: Components & Fields (CLEAN format)
             component_data = []
@@ -355,25 +362,49 @@ class AbInitioParser:
                 df_components.to_excel(writer, sheet_name='Components&Fields', index=False)
                 logger.info(f"   Components&Fields: {len(df_components)} rows exported")
 
-            # Sheet 3: GraphFlow
+            # Sheet 3: GraphFlow - ALWAYS CREATE
             flow_data = []
+
+            # Priority 1: Use enhanced flows from Autosys (graph-to-graph dependencies)
+            if enhanced_flows:
+                logger.info(f"Using {len(enhanced_flows)} enhanced graph flows from Autosys dependencies")
+                for flow in enhanced_flows:
+                    flow_data.append({
+                        "Source_Graph": flow.get("source_graph", ""),
+                        "Target_Graph": flow.get("target_graph", ""),
+                        "Source_Job": flow.get("source_job", ""),
+                        "Target_Job": flow.get("target_job", ""),
+                        "Dependency_Type": flow.get("condition_type", "success"),
+                        "Source": "Autosys"
+                    })
+
+            # Priority 2: Add internal component flows from .mp files
             for mp_data in self.raw_mp_data:
                 graph_name = mp_data.get("file_name", "Unknown")
                 flows = mp_data.get("graph_flow", [])
 
                 for flow in flows:
                     flow_data.append({
-                        "Graph": graph_name,
-                        "Source_Component": flow.get("source_component_name", ""),
-                        "Target_Component": flow.get("target_component_name", ""),
+                        "Source_Graph": graph_name,
+                        "Target_Graph": graph_name,
+                        "Source_Job": flow.get("source_component_name", ""),
+                        "Target_Job": flow.get("target_component_name", ""),
+                        "Dependency_Type": "internal",
+                        "Source": "MP_File"
                     })
 
+            # Always create sheet (even if empty)
             if flow_data:
                 df_flow = pd.DataFrame(flow_data)
                 if len(df_flow) > EXCEL_MAX_ROWS:
                     logger.warning(f"GraphFlow sheet too large ({len(df_flow)} rows). Truncating to {EXCEL_MAX_ROWS} rows.")
                     df_flow = df_flow.head(EXCEL_MAX_ROWS)
-                df_flow.to_excel(writer, sheet_name='GraphFlow', index=False)
+            else:
+                # Create empty sheet with headers
+                df_flow = pd.DataFrame(columns=["Source_Graph", "Target_Graph", "Source_Job", "Target_Job", "Dependency_Type", "Source"])
+                logger.info("GraphFlow sheet is empty (no flows found from Autosys or MP files)")
+
+            df_flow.to_excel(writer, sheet_name='GraphFlow', index=False)
 
             # Sheet 4: Summary
             summary_data = []
