@@ -254,6 +254,15 @@ class CompleteHadoopAnalyzer:
                 print(f"              ... and {len(missing_scripts) - 5} more")
         print()
         
+        # Calculate effort estimation
+        effort = self._estimate_effort(
+            scripts=len(referenced_scripts),
+            loc=total_lines,
+            actions=workflow_data['actions'],
+            tables=workflow_data['table_count'],
+            pipeline_size=pipeline_length
+        )
+        
         # Store result
         self.repos_data.append({
             'repo': repo_name,
@@ -267,9 +276,13 @@ class CompleteHadoopAnalyzer:
             'actions': workflow_data['actions'],
             'tables': workflow_data['table_count'],
             'total_loc': total_lines,
+            'effort_days': effort['total_days'],
+            'effort_hours': effort['total_hours'],
+            'effort_estimate': effort['effort_estimate'],
             'matched_scripts': matched_scripts,
             'missing_scripts': list(missing_scripts),
-            'referenced_scripts': list(referenced_scripts)
+            'referenced_scripts': list(referenced_scripts),
+            'effort_breakdown': effort  # Full breakdown for detailed sheet
         })
 
     def _extract_workflow_name(self, workflow_file: Path) -> str:
@@ -442,6 +455,92 @@ class CompleteHadoopAnalyzer:
             return "Medium"
         else:
             return "Big Pipeline"
+    
+    def _estimate_effort(self, scripts: int, loc: int, actions: int, tables: int, pipeline_size: str) -> dict:
+        """
+        Estimate effort for Hadoop pipeline analysis based on:
+        - Discovery & Analysis (10 actions per workflow)
+        - Code Reading
+        - Mapping Creation  
+        - Documentation
+        - Validation & Review
+        - Comparison with Databricks
+        
+        Returns: dict with hours, days, and breakdown
+        """
+        # Base effort per component (in hours)
+        BASE_DISCOVERY = 2  # Workflow understanding
+        BASE_CODE_READING = 0.5  # Per script
+        BASE_MAPPING = 1  # Per script for STTM
+        BASE_DOCUMENTATION = 1  # Per pipeline
+        BASE_VALIDATION = 1  # Per pipeline
+        BASE_COMPARISON = 2  # Compare with Databricks
+        
+        # Calculate effort by component
+        discovery_hours = BASE_DISCOVERY + (actions * 0.2)  # +0.2h per action
+        code_reading_hours = scripts * BASE_CODE_READING * (1 + loc/1000)  # Adjusted by LOC
+        mapping_hours = scripts * BASE_MAPPING * (1 + tables * 0.1)  # More tables = more mapping
+        documentation_hours = BASE_DOCUMENTATION
+        validation_hours = BASE_VALIDATION + (scripts * 0.3)
+        comparison_hours = BASE_COMPARISON
+        
+        # Total effort
+        total_hours = (
+            discovery_hours + 
+            code_reading_hours + 
+            mapping_hours + 
+            documentation_hours + 
+            validation_hours + 
+            comparison_hours
+        )
+        
+        # Apply complexity multiplier based on pipeline size
+        if pipeline_size == "Big Pipeline":
+            total_hours *= 1.3  # 30% overhead for complexity
+        elif pipeline_size == "Medium":
+            total_hours *= 1.1  # 10% overhead
+        
+        # Convert to days (assuming 8 hours per day)
+        total_days = total_hours / 8
+        
+        # Round to high-level numbers (0.5 increments for cleaner estimates)
+        rounded_days = round(total_days * 2) / 2  # Round to nearest 0.5
+        rounded_hours = rounded_days * 8
+        
+        # Create effort breakdown
+        effort_breakdown = {
+            'total_hours': rounded_hours,
+            'total_days': rounded_days,
+            'discovery_hours': round(discovery_hours, 1),
+            'code_reading_hours': round(code_reading_hours, 1),
+            'mapping_hours': round(mapping_hours, 1),
+            'documentation_hours': round(documentation_hours, 1),
+            'validation_hours': round(validation_hours, 1),
+            'comparison_hours': round(comparison_hours, 1),
+            'effort_estimate': self._format_effort_estimate(rounded_hours, rounded_days)
+        }
+        
+        return effort_breakdown
+    
+    def _format_effort_estimate(self, hours: float, days: float) -> str:
+        """Format effort estimate as human-readable string"""
+        # Format as clean integers or .5 increments
+        if days % 1 == 0:
+            days_str = f"{int(days)}"
+        else:
+            days_str = f"{days:.1f}"
+        
+        if hours % 1 == 0:
+            hours_str = f"{int(hours)}"
+        else:
+            hours_str = f"{hours:.1f}"
+        
+        if days < 1:
+            return f"{hours_str} hours"
+        elif days < 2:
+            return f"{days_str} day ({hours_str} hours)"
+        else:
+            return f"{days_str} days ({hours_str} hours)"
 
     def export_to_excel(self, output_file: str = None):
         """Export to Excel with comprehensive analysis"""
@@ -460,7 +559,7 @@ class CompleteHadoopAnalyzer:
             ws1 = wb.active
             ws1.title = 'Pipeline Summary'
 
-            headers1 = ['Repo', 'Pipeline Name', 'Module', 'No. of Scripts', 'Pipeline Length', 'Actions', 'Tables', 'LOC', 'Scripts Missing']
+            headers1 = ['Repo', 'Pipeline Name', 'Module', 'No. of Scripts', 'Pipeline Length', 'Actions', 'Tables', 'LOC', 'Scripts Missing', 'Estimated Effort']
             ws1.append(headers1)
 
             # Style headers
@@ -490,7 +589,8 @@ class CompleteHadoopAnalyzer:
                     r['actions'],
                     r['tables'],
                     r['total_loc'],
-                    r['scripts_missing']
+                    r['scripts_missing'],
+                    r['effort_estimate']
                 ])
 
             # Apply formatting
@@ -510,6 +610,7 @@ class CompleteHadoopAnalyzer:
             ws1.column_dimensions['G'].width = 10  # Tables
             ws1.column_dimensions['H'].width = 12  # LOC
             ws1.column_dimensions['I'].width = 15  # Scripts Missing
+            ws1.column_dimensions['J'].width = 20  # Estimated Effort
 
             # Add summary
             summary_start_row = ws1.max_row + 3
@@ -520,6 +621,8 @@ class CompleteHadoopAnalyzer:
             small_count = sum(1 for r in self.repos_data if r['pipeline_length'] == 'Small')
             total_scripts = sum(r['no_of_scripts'] for r in self.repos_data)
             total_missing = sum(r['scripts_missing'] for r in self.repos_data)
+            total_effort_days = sum(r['effort_days'] for r in self.repos_data)
+            total_effort_hours = sum(r['effort_hours'] for r in self.repos_data)
             
             summary_fill = PatternFill(start_color='E7E6E6', end_color='E7E6E6', fill_type='solid')
             summary_font = Font(bold=True, size=10)
@@ -534,7 +637,9 @@ class CompleteHadoopAnalyzer:
                 ['Small', small_count],
                 ['Total Pipelines', total_pipelines],
                 ['Total Scripts', total_scripts],
-                ['Scripts Missing', total_missing]
+                ['Scripts Missing', total_missing],
+                ['Total Effort (Days)', f"{int(total_effort_days) if total_effort_days % 1 == 0 else total_effort_days:.1f} days"],
+                ['Total Effort (Hours)', f"{int(total_effort_hours) if total_effort_hours % 1 == 0 else total_effort_hours:.1f} hours"]
             ]
             
             for i, (label, value) in enumerate(summary_data, start=1):
@@ -657,11 +762,70 @@ class CompleteHadoopAnalyzer:
             ws3.column_dimensions['E'].width = 10
             ws3.column_dimensions['F'].width = 18
 
+            # ==================== SHEET 4: Effort Breakdown ====================
+            ws4 = wb.create_sheet('Effort Breakdown')
+            
+            headers4 = ['Repo', 'Pipeline Name', 'Module', 'Pipeline Length', 
+                       'Total Days', 'Total Hours', 
+                       'Discovery', 'Code Reading', 'Mapping', 'Documentation', 'Validation', 'Comparison']
+            ws4.append(headers4)
+            
+            for cell in ws4[1]:
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+                cell.border = thin_border
+            
+            for r in self.repos_data:
+                effort = r['effort_breakdown']
+                ws4.append([
+                    r['repo'],
+                    r['pipeline_name'],
+                    r['module'],
+                    r['pipeline_length'],
+                    effort['total_days'],
+                    effort['total_hours'],
+                    effort['discovery_hours'],
+                    effort['code_reading_hours'],
+                    effort['mapping_hours'],
+                    effort['documentation_hours'],
+                    effort['validation_hours'],
+                    effort['comparison_hours']
+                ])
+            
+            # Apply formatting
+            for row in ws4.iter_rows(min_row=2, max_row=ws4.max_row, min_col=1, max_col=len(headers4)):
+                for cell in row:
+                    cell.border = thin_border
+                    if cell.column in [5, 6, 7, 8, 9, 10, 11, 12]:
+                        cell.alignment = Alignment(horizontal='center')
+                        if cell.column in [5, 6]:
+                            cell.font = Font(bold=True, color='0000FF')
+            
+            ws4.column_dimensions['A'].width = 25
+            ws4.column_dimensions['B'].width = 40
+            ws4.column_dimensions['C'].width = 25
+            ws4.column_dimensions['D'].width = 18
+            ws4.column_dimensions['E'].width = 12
+            ws4.column_dimensions['F'].width = 12
+            ws4.column_dimensions['G'].width = 12
+            ws4.column_dimensions['H'].width = 14
+            ws4.column_dimensions['I'].width = 12
+            ws4.column_dimensions['J'].width = 15
+            ws4.column_dimensions['K'].width = 12
+            ws4.column_dimensions['L'].width = 12
+
             # Save
             wb.save(output_file)
             print(f"\n✅ Excel report generated: {output_file}")
             print(f"   📊 {total_pipelines} pipelines analyzed")
             print(f"   📝 {total_scripts} scripts referenced ({total_scripts - total_missing} found, {total_missing} missing)")
+            
+            # Format effort cleanly
+            days_display = int(total_effort_days) if total_effort_days % 1 == 0 else f"{total_effort_days:.1f}"
+            hours_display = int(total_effort_hours) if total_effort_hours % 1 == 0 else f"{total_effort_hours:.1f}"
+            print(f"   ⏱️  Total effort: {days_display} days ({hours_display} hours)")
+            print(f"   📦 Pipeline breakdown: {big_count} Big, {medium_count} Medium, {small_count} Small")
             
             # Print inventory summary
             print(f"\n📦 Script Inventory Summary:")
