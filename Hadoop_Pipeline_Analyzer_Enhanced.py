@@ -160,17 +160,46 @@ class HadoopPipelineAnalyzer:
         return workflow_file.parent.name
 
     def _extract_pipeline_name(self, workflow_file: Path) -> str:
-        """Extract clean pipeline name"""
-        name = workflow_file.stem
-        
-        # Remove common suffixes
-        name = name.replace('_workflow', '').replace('workflow_', '').replace('workflow', '')
-        
-        # If empty, use file name
-        if not name or name == '_':
+        """Extract pipeline name from workflow XML name attribute"""
+        try:
+            # First, try to get name from XML
+            tree = ET.parse(workflow_file)
+            root = tree.getroot()
+            
+            # Check if workflow-app has a name attribute
+            if 'name' in root.attrib:
+                xml_name = root.attrib['name']
+                # Clean up the name
+                if xml_name and len(xml_name) > 0:
+                    # Remove common prefixes/suffixes
+                    cleaned = xml_name.replace('escan_data_ingestion', '').replace(':', '').strip()
+                    if cleaned:
+                        return cleaned
+            
+            # Fallback to filename-based name
             name = workflow_file.stem
-        
-        return name
+            
+            # Remove common suffixes
+            name = name.replace('_workflow', '').replace('workflow_', '')
+            
+            # If it's just "workflow", try using parent directory name
+            if name == 'workflow':
+                parent_name = workflow_file.parent.name
+                if parent_name != 'oozie':
+                    return parent_name
+            
+            # If still empty or generic, use file stem
+            if not name or name == '_':
+                name = workflow_file.stem
+            
+            return name
+            
+        except Exception as e:
+            # If XML parsing fails, use filename
+            name = workflow_file.stem
+            if name == 'workflow':
+                return workflow_file.parent.name
+            return name
 
     def _parse_workflow_xml(self, workflow_file: Path) -> Dict:
         """Parse workflow XML to extract actions, tables, and script references"""
@@ -262,7 +291,7 @@ class HadoopPipelineAnalyzer:
         return list(tables)
 
     def _find_actual_scripts(self, workflow_file: Path) -> Dict:
-        """Find actual script files in the repo"""
+        """Find actual script files in the repo - RECURSIVELY"""
         scripts = {}
         
         # Get base directory (parent or grandparent of workflow file)
@@ -272,7 +301,7 @@ class HadoopPipelineAnalyzer:
         if base_dir.name == 'oozie':
             base_dir = base_dir.parent
         
-        # Search for script directories
+        # Search for script directories RECURSIVELY (using rglob instead of glob)
         script_dirs = {
             'spark': ['*.py'],
             'pig': ['*.pig'],
@@ -285,10 +314,12 @@ class HadoopPipelineAnalyzer:
             script_dir = base_dir / dir_name
             if script_dir.exists():
                 for pattern in patterns:
-                    for script_file in script_dir.glob(pattern):
+                    # Use rglob for recursive search
+                    for script_file in script_dir.rglob(pattern):
                         script_type = self._get_script_type(script_file)
                         lines = self._count_lines(script_file)
                         
+                        # Store by filename only (not full path) to match references
                         scripts[script_file.name] = {
                             'type': script_type,
                             'path': str(script_file),
