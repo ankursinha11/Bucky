@@ -427,7 +427,12 @@ Provide:
         """
         Export integrated results to Excel with enhanced GraphFlow
 
-        Creates 5 sheets:
+        For multi-project codebases, creates separate Excel files per project:
+        - {output_path}_project1.xlsx
+        - {output_path}_project2.xlsx
+        - {output_path}_summary.xlsx (combined)
+
+        Each Excel contains 5 sheets:
         1. GraphParameters
         2. Components&Fields
         3. GraphFlow (ENHANCED with Autosys dependencies!)
@@ -435,34 +440,190 @@ Provide:
         5. AutosysJobs (NEW!)
         """
         import pandas as pd
+        from pathlib import Path
 
         logger.info(f"Exporting integrated results to Excel: {output_path}")
 
-        # First, export Ab Initio data (creates 4 sheets)
-        self.base_parser.raw_mp_data = integrated_result.get("raw_mp_data", [])
-        self.base_parser.export_to_excel(output_path)
+        # Check if we have multiple projects
+        repositories = integrated_result.get("repositories", [])
+        output_path_obj = Path(output_path)
 
-        # Then, add Autosys sheet if available
-        if integrated_result.get("autosys_jobs"):
-            autosys_data = []
+        if len(repositories) > 1:
+            logger.info(f"📊 Detected {len(repositories)} projects - creating separate Excel files")
 
-            for job in integrated_result["autosys_jobs"]:
-                autosys_data.append({
-                    "Job_Name": job.name,
-                    "Ab_Initio_Graph": job.parameters.get("abinitio_graph", ""),
-                    "Command": job.parameters.get("command", ""),
-                    "Machine": job.parameters.get("machine", ""),
-                    "Condition": job.parameters.get("condition", ""),
-                    "Description": job.business_description or "",
+            # Group raw_mp_data by project
+            project_data_map = self._group_mp_data_by_project(
+                integrated_result.get("raw_mp_data", []),
+                repositories
+            )
+
+            excel_files = []
+
+            # Export each project separately
+            for project_name, project_mp_data in project_data_map.items():
+                project_excel_path = output_path_obj.parent / f"{output_path_obj.stem}_{project_name}.xlsx"
+
+                logger.info(f"   Exporting project: {project_name} ({len(project_mp_data)} graphs)")
+
+                # Export this project's data
+                self.base_parser.raw_mp_data = project_mp_data
+                self.base_parser.export_to_excel(str(project_excel_path))
+
+                excel_files.append(str(project_excel_path))
+
+            # Create combined summary file
+            summary_excel_path = output_path_obj.parent / f"{output_path_obj.stem}_ALL_PROJECTS.xlsx"
+            self._create_combined_summary(summary_excel_path, integrated_result, project_data_map)
+            excel_files.append(str(summary_excel_path))
+
+            logger.info(f"✓ Created {len(excel_files)} Excel files:")
+            for excel_file in excel_files:
+                logger.info(f"   - {Path(excel_file).name}")
+
+            return excel_files
+
+        else:
+            # Single project - use original method
+            logger.info("📊 Single project - creating one Excel file")
+
+            # Export Ab Initio data (creates 4 sheets)
+            self.base_parser.raw_mp_data = integrated_result.get("raw_mp_data", [])
+            self.base_parser.export_to_excel(output_path)
+
+            # Add Autosys sheet if available
+            if integrated_result.get("autosys_jobs"):
+                autosys_data = []
+
+                for job in integrated_result["autosys_jobs"]:
+                    autosys_data.append({
+                        "Job_Name": job.name,
+                        "Ab_Initio_Graph": job.parameters.get("abinitio_graph", ""),
+                        "Command": job.parameters.get("command", ""),
+                        "Machine": job.parameters.get("machine", ""),
+                        "Condition": job.parameters.get("condition", ""),
+                        "Description": job.business_description or "",
+                    })
+
+                if autosys_data:
+                    df_autosys = pd.DataFrame(autosys_data)
+
+                    # Append as new sheet
+                    with pd.ExcelWriter(output_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+                        df_autosys.to_excel(writer, sheet_name='AutosysJobs', index=False)
+
+            logger.info(f"✓ Integrated Excel created: {output_path}")
+            logger.info(f"   5 sheets with ENHANCED GraphFlow from Autosys!")
+
+            return [output_path]
+
+    def _group_mp_data_by_project(self, raw_mp_data: List[Dict], repositories: List) -> Dict[str, List[Dict]]:
+        """
+        Group raw_mp_data by project based on file paths
+
+        Args:
+            raw_mp_data: List of raw mp data dictionaries
+            repositories: List of repository objects
+
+        Returns:
+            Dictionary mapping project name to list of mp_data
+        """
+        project_data_map = {}
+
+        # Create map of project paths
+        project_paths = {}
+        for repo in repositories:
+            project_name = repo.name
+            # Get the project folder path from repository metadata
+            if hasattr(repo, 'path'):
+                project_paths[project_name] = repo.path
+            else:
+                project_paths[project_name] = project_name
+
+        # Group mp_data by project
+        for mp_data in raw_mp_data:
+            file_path = mp_data.get("file_path", "")
+
+            # Find which project this file belongs to
+            assigned = False
+            for project_name, project_path in project_paths.items():
+                if project_name in file_path or project_path in file_path:
+                    if project_name not in project_data_map:
+                        project_data_map[project_name] = []
+                    project_data_map[project_name].append(mp_data)
+                    assigned = True
+                    break
+
+            # If not assigned, put in "other" category
+            if not assigned:
+                if "other" not in project_data_map:
+                    project_data_map["other"] = []
+                project_data_map["other"].append(mp_data)
+
+        logger.info(f"Grouped {len(raw_mp_data)} graphs into {len(project_data_map)} projects")
+        for project_name, data_list in project_data_map.items():
+            logger.info(f"   {project_name}: {len(data_list)} graphs")
+
+        return project_data_map
+
+    def _create_combined_summary(self, output_path: Path, integrated_result: Dict[str, Any], project_data_map: Dict[str, List[Dict]]):
+        """
+        Create a combined summary Excel with overview of all projects
+
+        Args:
+            output_path: Path to output Excel file
+            integrated_result: Integrated parsing results
+            project_data_map: Map of project names to mp_data lists
+        """
+        import pandas as pd
+
+        logger.info(f"Creating combined summary: {output_path}")
+
+        with pd.ExcelWriter(str(output_path), engine='openpyxl') as writer:
+            # Sheet 1: Project Summary
+            project_summary = []
+            for project_name, mp_data_list in project_data_map.items():
+                total_components = sum(mp.get("component_count", 0) for mp in mp_data_list)
+                total_params = sum(len(mp.get("graph_parameters", [])) for mp in mp_data_list)
+                total_flows = sum(mp.get("flow_count", 0) for mp in mp_data_list)
+
+                project_summary.append({
+                    "Project": project_name,
+                    "Total_Graphs": len(mp_data_list),
+                    "Total_Components": total_components,
+                    "Total_Parameters": total_params,
+                    "Total_Flows": total_flows,
                 })
 
-            if autosys_data:
-                df_autosys = pd.DataFrame(autosys_data)
+            df_project_summary = pd.DataFrame(project_summary)
+            df_project_summary.to_excel(writer, sheet_name='ProjectSummary', index=False)
 
-                # Append as new sheet
-                from openpyxl import load_workbook
-                with pd.ExcelWriter(output_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+            # Sheet 2: Autosys Jobs (if available)
+            if integrated_result.get("autosys_jobs"):
+                autosys_data = []
+                for job in integrated_result["autosys_jobs"]:
+                    autosys_data.append({
+                        "Job_Name": job.name,
+                        "Ab_Initio_Graph": job.parameters.get("abinitio_graph", ""),
+                        "Command": job.parameters.get("command", ""),
+                        "Machine": job.parameters.get("machine", ""),
+                        "Condition": job.parameters.get("condition", ""),
+                        "Description": job.business_description or "",
+                    })
+
+                if autosys_data:
+                    df_autosys = pd.DataFrame(autosys_data)
                     df_autosys.to_excel(writer, sheet_name='AutosysJobs', index=False)
 
-        logger.info(f"✓ Integrated Excel created: {output_path}")
-        logger.info(f"   5 sheets with ENHANCED GraphFlow from Autosys!")
+            # Sheet 3: Overall Summary
+            overall_summary = [{
+                "Total_Projects": len(project_data_map),
+                "Total_Graphs": sum(len(mp_list) for mp_list in project_data_map.values()),
+                "Total_Components": integrated_result.get("summary", {}).get("total_components", 0),
+                "Autosys_Jobs": len(integrated_result.get("autosys_jobs", [])),
+                "Enhanced_Flows": integrated_result.get("summary", {}).get("enhanced_flows", 0),
+            }]
+
+            df_overall = pd.DataFrame(overall_summary)
+            df_overall.to_excel(writer, sheet_name='OverallSummary', index=False)
+
+        logger.info(f"✓ Combined summary created: {output_path}")
