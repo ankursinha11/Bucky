@@ -14,6 +14,7 @@ from typing import Dict, List, Any
 from loguru import logger
 
 from parsers.abinitio.parser import AbInitioParser
+from parsers.abinitio.deep_parser_multi_repo import DeepAbInitioParserMultiRepo
 from parsers.autosys.parser import AutosysParser
 
 
@@ -24,12 +25,21 @@ class IntegratedAbInitioAutosysParser:
     2. Autosys JIL files (job dependencies, execution order)
 
     Result: Complete workflow with accurate GraphFlow!
+
+    Now supports multi-project detection!
     """
 
-    def __init__(self):
-        """Initialize integrated parser"""
-        self.abinitio_parser = AbInitioParser()
+    def __init__(self, use_ai: bool = True):
+        """
+        Initialize integrated parser
+
+        Args:
+            use_ai: Whether to use AI analysis (default: True)
+        """
+        self.base_parser = AbInitioParser()  # For Excel export
+        self.deep_parser = DeepAbInitioParserMultiRepo(use_ai=use_ai)  # For indexing
         self.autosys_parser = AutosysParser()
+        self.use_ai = use_ai
 
     def parse_combined(
         self,
@@ -76,15 +86,26 @@ class IntegratedAbInitioAutosysParser:
         else:
             logger.warning("No Autosys files found - GraphFlow will be limited")
 
-        # STEP 2: Parse Ab Initio with Autosys context
+        # STEP 2: Parse Ab Initio with Autosys context (BOTH parsers)
         logger.info(f"📦 STEP 2: Parsing Ab Initio with Autosys context: {abinitio_path}")
-        abinitio_result = self.abinitio_parser.parse_directory(abinitio_path)
 
-        logger.info(f"   ✓ Found {len(abinitio_result['processes'])} Ab Initio graphs")
+        # Base parser for Excel export
+        base_result = self.base_parser.parse_directory(abinitio_path)
+        logger.info(f"   ✓ Base parsing: {len(base_result['processes'])} Ab Initio graphs")
+
+        # Deep parser for indexing (with multi-repo support!)
+        deep_result = self.deep_parser.parse_directory(abinitio_path)
+        logger.info(f"   ✓ Deep parsing: {len(deep_result.get('workflow_flows', []))} workflows, "
+                   f"{len(deep_result.get('script_logics', []))} scripts")
+
+        if deep_result.get("repositories"):
+            logger.info(f"   ✓ Detected {len(deep_result['repositories'])} Ab Initio projects")
+            for repo in deep_result['repositories']:
+                logger.info(f"      - {repo.name}")
 
         # STEP 3: Merge and enhance with Autosys context
         logger.info("🔗 STEP 3: Integrating Autosys dependencies with Ab Initio graphs")
-        integrated_result = self._integrate_results(abinitio_result, autosys_result, autosys_context)
+        integrated_result = self._integrate_results(base_result, deep_result, autosys_result, autosys_context)
 
         # STEP 4: AI Analysis with full context
         if use_ai and autosys_result:
@@ -92,7 +113,7 @@ class IntegratedAbInitioAutosysParser:
             self._run_integrated_ai_analysis(integrated_result, autosys_context)
 
         logger.info("✅ Integrated parsing complete!")
-        logger.info(f"   Ab Initio Graphs: {len(abinitio_result['processes'])}")
+        logger.info(f"   Ab Initio Graphs: {len(base_result['processes'])}")
         if autosys_result:
             logger.info(f"   Autosys Jobs: {len(autosys_result['processes'])}")
             logger.info(f"   Job Dependencies: {autosys_result['summary']['total_dependencies']}")
@@ -245,22 +266,37 @@ Provide:
 
     def _integrate_results(
         self,
-        abinitio_result: Dict[str, Any],
+        base_result: Dict[str, Any],
+        deep_result: Dict[str, Any],
         autosys_result: Dict[str, Any] = None,
         autosys_context: Dict[str, Any] = None
     ) -> Dict[str, Any]:
         """
-        Merge Ab Initio and Autosys results
+        Merge Ab Initio (base + deep) and Autosys results
 
         Creates enhanced GraphFlow by linking:
         1. Autosys job dependencies
         2. Ab Initio graph references in Autosys commands
         3. Component-level flows from .mp files
+
+        Args:
+            base_result: Base parser result (for Excel)
+            deep_result: Deep parser result (for indexing)
+            autosys_result: Autosys parser result
+            autosys_context: Autosys context
         """
+        # Combine base and deep results
         integrated = {
-            "processes": abinitio_result["processes"],
-            "components": abinitio_result["components"],
-            "raw_mp_data": abinitio_result.get("raw_mp_data", []),
+            # Base parsing (for Excel)
+            "processes": base_result["processes"],
+            "components": base_result["components"],
+            "raw_mp_data": base_result.get("raw_mp_data", []),
+
+            # Deep parsing (for indexing)
+            "repository": deep_result.get("repository"),
+            "repositories": deep_result.get("repositories", []),
+            "workflow_flows": deep_result.get("workflow_flows", []),
+            "script_logics": deep_result.get("script_logics", []),
         }
 
         # If we have Autosys data, enhance the results
@@ -268,7 +304,7 @@ Provide:
             # Map Autosys jobs to Ab Initio graphs
             job_to_graph_map = self._map_jobs_to_graphs(
                 autosys_result["components"],
-                abinitio_result["processes"]
+                base_result["processes"]
             )
 
             # Build enhanced GraphFlow from Autosys dependencies
@@ -304,8 +340,9 @@ Provide:
                     mp_data["flow_count"] = len(graph_flows)
 
         integrated["summary"] = {
-            "total_graphs": len(abinitio_result["processes"]),
-            "total_components": len(abinitio_result["components"]),
+            "total_graphs": len(base_result["processes"]),
+            "total_components": len(base_result["components"]),
+            "total_projects": len(deep_result.get("repositories", [])),
             "autosys_jobs": len(autosys_result["processes"]) if autosys_result else 0,
             "enhanced_flows": len(integrated.get("enhanced_flows", [])),
             "graph_references": len(autosys_context.get("graph_references", [])) if autosys_context else 0,
