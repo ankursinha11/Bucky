@@ -111,9 +111,23 @@ class DeepIndexer:
         # Index all documents
         if documents:
             logger.info(f"📤 Indexing {len(documents)} total documents...")
-            self.search_client.index_documents(documents)
-            self.indexed_count = len(documents)
-            logger.info(f"✅ Indexed {self.indexed_count} documents successfully")
+
+            # Deduplicate documents by ID (keep last occurrence)
+            seen_ids = {}
+            for doc in documents:
+                doc_id = doc.get("id")
+                if doc_id:
+                    seen_ids[doc_id] = doc
+
+            unique_documents = list(seen_ids.values())
+
+            if len(unique_documents) < len(documents):
+                duplicates_removed = len(documents) - len(unique_documents)
+                logger.warning(f"⚠️  Removed {duplicates_removed} duplicate documents (same ID)")
+
+            self.search_client.index_documents(unique_documents)
+            self.indexed_count = len(unique_documents)
+            logger.info(f"✅ Indexed {self.indexed_count} unique documents successfully")
 
         return counts
 
