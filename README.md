@@ -15,3 +15,5 @@ If that doesn't show "File Not Found", run this PowerShell version:
 Get-ChildItem -Path . -Include *.pyc -Recurse | Remove-Item -Force
 Get-ChildItem -Path . -Include __pycache__ -Recurse | Remove-Item -Recurse -Force
 Remove-Item -Path outputs\vector_db -Recurse -Force -ErrorAction SilentlyContinue
+
+scp -i ~/.ssh/azurevm_key.pem -r myproject azureuser@20.204.145.10:/home/azureuser/
