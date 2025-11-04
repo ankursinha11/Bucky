@@ -1297,7 +1297,169 @@ def render_export_stats_ui():
             st.error(f"Export error: {e}")
 
 
-# Indexing helper functions
+# ============================================
+# AI-Powered Document Creation
+# ============================================
+
+def create_intelligent_document(
+    process,
+    components: List,
+    system_type: str,
+    ai_analyzer
+) -> Dict[str, Any]:
+    """
+    Use AI to understand parsed data and create intelligent documents
+
+    This is the key function that uses AI to:
+    - Understand what the process does
+    - Identify source-to-target mappings
+    - Extract business logic
+    - Understand data flow
+    - Create comprehensive, searchable documents
+    """
+
+    # Extract all available attributes from the process object
+    process_data = {}
+    for attr in dir(process):
+        if not attr.startswith('_'):
+            try:
+                value = getattr(process, attr)
+                if not callable(value):
+                    process_data[attr] = value
+            except:
+                pass
+
+    # Build context from process and related components
+    process_id = process_data.get('id', 'unknown')
+    process_name = process_data.get('name', 'Unnamed Process')
+    process_type = process_data.get('type', system_type)
+
+    # Find related components
+    related_components = []
+    for comp in components:
+        comp_data = {}
+        for attr in dir(comp):
+            if not attr.startswith('_'):
+                try:
+                    value = getattr(comp, attr)
+                    if not callable(value):
+                        comp_data[attr] = value
+                except:
+                    pass
+
+        # Check if component belongs to this process
+        comp_process_id = comp_data.get('process_id', comp_data.get('parent_id', ''))
+        if process_id in str(comp_process_id):
+            related_components.append(comp_data)
+
+    # Create rich context for AI
+    context = f"""
+System: {system_type.upper()}
+Process Name: {process_name}
+Process ID: {process_id}
+Process Type: {process_type}
+
+Process Details:
+{json.dumps(process_data, indent=2, default=str)}
+
+Related Components ({len(related_components)}):
+{json.dumps(related_components[:10], indent=2, default=str) if related_components else 'No components'}
+"""
+
+    # Use AI to understand and enrich the document
+    ai_understanding = ""
+    source_target_mapping = ""
+    business_logic = ""
+    data_flow = ""
+
+    if ai_analyzer and ai_analyzer.enabled:
+        try:
+            # Ask AI to analyze the process
+            analysis_result = ai_analyzer.analyze_with_context(
+                query=f"""Analyze this {system_type} process and provide:
+1. What does this process do? (1-2 sentences)
+2. Source-to-Target mapping (identify inputs and outputs)
+3. Key business logic and transformations
+4. Data flow and dependencies
+5. Important fields/columns being processed""",
+                context=context[:8000]  # Limit context size
+            )
+
+            ai_understanding = analysis_result.get('analysis', analysis_result.get('response', ''))
+
+            # Extract structured information if AI is available
+            if "Source" in ai_understanding or "Target" in ai_understanding:
+                source_target_mapping = ai_understanding
+
+        except Exception as e:
+            logger.warning(f"AI analysis failed for {process_name}: {e}")
+            ai_understanding = "AI analysis not available"
+    else:
+        ai_understanding = "AI analysis not available (Azure OpenAI not configured)"
+
+    # Build comprehensive document content
+    content_parts = [
+        f"# {process_name}",
+        f"**System:** {system_type.upper()}",
+        f"**Process ID:** {process_id}",
+        f"**Type:** {process_type}",
+        "",
+        "## AI Understanding",
+        ai_understanding,
+        "",
+        "## Process Structure"
+    ]
+
+    # Add description if available
+    description = process_data.get('description') or process_data.get('doc_string')
+    if description:
+        content_parts.extend(["", "## Description", str(description)])
+
+    # Add components summary
+    if related_components:
+        content_parts.extend([
+            "",
+            f"## Components ({len(related_components)})"
+        ])
+        for i, comp in enumerate(related_components[:5], 1):
+            comp_name = comp.get('name', comp.get('component_name', f'Component {i}'))
+            comp_type = comp.get('type', comp.get('component_type', 'unknown'))
+            content_parts.append(f"- **{comp_name}** ({comp_type})")
+
+    # Add raw data for searchability
+    content_parts.extend([
+        "",
+        "## Technical Details",
+        f"```json",
+        json.dumps(process_data, indent=2, default=str)[:2000],  # Limit size
+        "```"
+    ])
+
+    # Create the document
+    document = {
+        "id": process_id,
+        "content": "\n".join(content_parts),
+        "doc_type": f"{system_type}_workflow",
+        "system": system_type,
+        "metadata": {
+            "process_name": process_name,
+            "process_type": process_type,
+            "process_id": process_id,
+            "component_count": len(related_components),
+            "has_ai_analysis": bool(ai_analyzer and ai_analyzer.enabled),
+            "source_path": process_data.get('source_path', process_data.get('file_path', '')),
+            # Add any other useful metadata
+            **{k: v for k, v in process_data.items()
+               if k in ['inputs', 'outputs', 'dependencies', 'tags'] and v}
+        }
+    }
+
+    return document
+
+
+# ============================================
+# Indexing Helper Functions
+# ============================================
 
 def reindex_abinitio_from_directory(directory_path: str):
     """Re-index Ab Initio from directory"""
@@ -1381,7 +1543,7 @@ def reindex_autosys_from_upload(uploaded_files):
 
 
 def reindex_hadoop_from_directory(directory_path: str):
-    """Re-index Hadoop from directory"""
+    """Re-index Hadoop from directory with AI-powered understanding"""
     progress_bar = st.progress(0)
     status_text = st.empty()
 
@@ -1392,32 +1554,34 @@ def reindex_hadoop_from_directory(directory_path: str):
         parser = HadoopParser()
         result = parser.parse_directory(directory_path)
 
-        progress_bar.progress(50)
-        status_text.text("Indexing workflows and scripts...")
+        progress_bar.progress(40)
+        status_text.text("Using AI to understand workflows and create documents...")
 
         if st.session_state.indexer and result.get("processes"):
-            # Create documents from parsed processes/components
             documents = []
-            for process in result.get("processes", []):
-                doc = {
-                    "id": process.id,
-                    "content": f"{process.name}\n{process.description or ''}",
-                    "doc_type": "hadoop_workflow",
-                    "system": "hadoop",
-                    "metadata": {
-                        "process_name": process.name,
-                        "source_path": process.source_path
-                    }
-                }
+
+            # Process each workflow with AI understanding
+            for idx, process in enumerate(result.get("processes", [])):
+                progress_bar.progress(40 + int((idx / len(result["processes"])) * 40))
+
+                # Create AI-powered document
+                doc = create_intelligent_document(
+                    process=process,
+                    components=result.get("components", []),
+                    system_type="hadoop",
+                    ai_analyzer=st.session_state.ai_analyzer
+                )
                 documents.append(doc)
 
             # Index documents
+            status_text.text("Indexing AI-enriched documents...")
+            progress_bar.progress(85)
             st.session_state.indexer.collections["hadoop_collection"].index_documents(documents)
 
             progress_bar.progress(100)
             status_text.empty()
 
-            st.success(f"✓ Indexed {len(documents)} Hadoop workflows")
+            st.success(f"✓ Indexed {len(documents)} Hadoop workflows with AI understanding")
 
             # Refresh stats
             st.session_state.stats = st.session_state.indexer.get_stats()
@@ -1439,7 +1603,7 @@ def reindex_hadoop_from_upload(uploaded_files):
 
 
 def reindex_databricks_from_directory(directory_path: str):
-    """Re-index Databricks from directory"""
+    """Re-index Databricks from directory with AI-powered understanding"""
     progress_bar = st.progress(0)
     status_text = st.empty()
 
@@ -1450,32 +1614,34 @@ def reindex_databricks_from_directory(directory_path: str):
         parser = DatabricksParser()
         result = parser.parse_directory(directory_path)
 
-        progress_bar.progress(50)
-        status_text.text("Indexing notebooks...")
+        progress_bar.progress(40)
+        status_text.text("Using AI to understand notebooks and create documents...")
 
         if st.session_state.indexer and result.get("processes"):
-            # Create documents from parsed processes/components
             documents = []
-            for process in result.get("processes", []):
-                doc = {
-                    "id": process.id,
-                    "content": f"{process.name}\n{process.description or ''}",
-                    "doc_type": "databricks_notebook",
-                    "system": "databricks",
-                    "metadata": {
-                        "process_name": process.name,
-                        "source_path": process.source_path
-                    }
-                }
+
+            # Process each notebook with AI understanding
+            for idx, process in enumerate(result.get("processes", [])):
+                progress_bar.progress(40 + int((idx / len(result["processes"])) * 40))
+
+                # Create AI-powered document
+                doc = create_intelligent_document(
+                    process=process,
+                    components=result.get("components", []),
+                    system_type="databricks",
+                    ai_analyzer=st.session_state.ai_analyzer
+                )
                 documents.append(doc)
 
             # Index documents
+            status_text.text("Indexing AI-enriched documents...")
+            progress_bar.progress(85)
             st.session_state.indexer.collections["databricks_collection"].index_documents(documents)
 
             progress_bar.progress(100)
             status_text.empty()
 
-            st.success(f"✓ Indexed {len(documents)} Databricks notebooks")
+            st.success(f"✓ Indexed {len(documents)} Databricks notebooks with AI understanding")
 
             # Refresh stats
             st.session_state.stats = st.session_state.indexer.get_stats()
