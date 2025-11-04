@@ -1,3 +1,6 @@
+python -c "import os; from dotenv import load_dotenv; load_dotenv(); print('API Key:', os.getenv('AZURE_OPENAI_API_KEY')[:20] + '...' if os.getenv('AZURE_OPENAI_API_KEY') else 'NOT FOUND'); print('Endpoint:', os.getenv('AZURE_OPENAI_ENDPOINT'))"
+
+
 """
 Quick Verification Script - Test STAG Initialization
 ====================================================
