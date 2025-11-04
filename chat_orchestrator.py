@@ -190,13 +190,30 @@ class ChatOrchestrator:
         )
 
         try:
-            # Use indexer to search
-            search_results = self.indexer.search(query, top_k=5)
+            # Use indexer to search across all collections
+            collections = [
+                "abinitio_collection",
+                "hadoop_collection",
+                "databricks_collection",
+                "autosys_collection",
+                "documents_collection"
+            ]
+
+            search_results = self.indexer.search_multi_collection(
+                query=query,
+                collections=collections,
+                top_k=5
+            )
+
+            # Flatten results from all collections
+            all_results = []
+            for _, results in search_results.items():
+                all_results.extend(results)
 
             yield StreamUpdate(
                 type=UpdateType.TASK_COMPLETE,
-                content=f"Found {len(search_results)} relevant documents",
-                data={"results_count": len(search_results)}
+                content=f"Found {len(all_results)} relevant documents across {len(search_results)} collections",
+                data={"results_count": len(all_results), "collections": len(search_results)}
             )
 
             # Task 2: Extract context
@@ -206,11 +223,11 @@ class ChatOrchestrator:
             )
 
             context_chunks = []
-            for result in search_results:
-                if hasattr(result, 'page_content'):
-                    context_chunks.append(result.page_content)
-                elif isinstance(result, dict):
-                    context_chunks.append(result.get('content', ''))
+            for result in all_results[:5]:  # Limit to top 5 overall
+                if isinstance(result, dict):
+                    content = result.get('content', '')
+                    if content:
+                        context_chunks.append(content)
 
             yield StreamUpdate(
                 type=UpdateType.TASK_COMPLETE,
