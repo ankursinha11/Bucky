@@ -306,13 +306,32 @@ Provide a clear, concise answer based on the context provided."""
             try:
                 # Search for entities in this system
                 search_query = f"{system} {' '.join(entities[:3])}"
-                results = self.indexer.search(search_query, top_k=3)
 
-                if results:
+                # Determine collection based on system
+                collection_map = {
+                    'abinitio': 'abinitio_collection',
+                    'hadoop': 'hadoop_collection',
+                    'databricks': 'databricks_collection'
+                }
+                collection = collection_map.get(system.lower(), 'abinitio_collection')
+
+                results = self.indexer.search_multi_collection(
+                    query=search_query,
+                    collections=[collection],
+                    top_k=3
+                )
+
+                # Flatten results
+                all_results = []
+                for _, docs in results.items():
+                    all_results.extend(docs)
+
+                if all_results:
+                    first_result = all_results[0]
                     parsed_entities[system] = {
                         'system': system,
                         'entities': entities,
-                        'context': results[0].page_content if hasattr(results[0], 'page_content') else str(results[0])
+                        'context': first_result.get('content', '') if isinstance(first_result, dict) else str(first_result)
                     }
 
                     yield StreamUpdate(
@@ -475,16 +494,34 @@ Provide a clear, concise answer based on the context provided."""
             content="Using **ParsingAgent** to extract entity structure..."
         )
 
-        # Search for entity
+        # Search for entity across all collections
         search_query = ' '.join(entities[:3]) if entities else query
-        search_results = self.indexer.search(search_query, top_k=5)
+
+        collections = [
+            "abinitio_collection",
+            "hadoop_collection",
+            "databricks_collection",
+            "autosys_collection"
+        ]
+
+        search_results = self.indexer.search_multi_collection(
+            query=search_query,
+            collections=collections,
+            top_k=5
+        )
+
+        # Flatten results
+        all_results = []
+        for _, docs in search_results.items():
+            all_results.extend(docs)
 
         parsed_data = {}
-        if search_results:
+        if all_results:
+            first_result = all_results[0]
             parsed_data = {
                 'entity_name': entities[0] if entities else 'unknown',
-                'context': search_results[0].page_content if hasattr(search_results[0], 'page_content') else str(search_results[0]),
-                'metadata': search_results[0].metadata if hasattr(search_results[0], 'metadata') else {}
+                'context': first_result.get('content', '') if isinstance(first_result, dict) else str(first_result),
+                'metadata': first_result.get('metadata', {}) if isinstance(first_result, dict) else {}
             }
 
         yield StreamUpdate(
@@ -645,12 +682,27 @@ Found **{len(sttm_mappings)} field mappings**
         )
 
         search_query = ' '.join(entities[:3]) if entities else query
-        search_results = self.indexer.search(search_query, top_k=3)
 
+        collections = [
+            "abinitio_collection",
+            "hadoop_collection",
+            "databricks_collection"
+        ]
+
+        search_results = self.indexer.search_multi_collection(
+            query=search_query,
+            collections=collections,
+            top_k=3
+        )
+
+        # Flatten results and extract code
         code_snippets = []
-        for result in search_results:
-            if hasattr(result, 'page_content'):
-                code_snippets.append(result.page_content)
+        for _, docs in search_results.items():
+            for result in docs:
+                if isinstance(result, dict):
+                    code = result.get('content', '')
+                    if code:
+                        code_snippets.append(code)
 
         yield StreamUpdate(
             type=UpdateType.TASK_COMPLETE,
