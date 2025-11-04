@@ -31,6 +31,8 @@ from services.azure_embeddings import create_embedding_client
 
 # Parsers
 from parsers.abinitio.parser import AbInitioParser
+from parsers.hadoop.parser import HadoopParser
+from parsers.databricks.parser import DatabricksParser
 from parsers.autosys.parser import AutosysParser
 from parsers.documents.document_parser import DocumentParser
 
@@ -50,6 +52,10 @@ from services.chat.chat_orchestrator import create_chat_orchestrator, UpdateType
 from loguru import logger
 import tempfile
 import os
+
+# Load environment variables
+from dotenv import load_dotenv
+load_dotenv()  # Load .env file to make Azure OpenAI credentials available
 
 
 # ============================================
@@ -125,6 +131,8 @@ def initialize_session_state():
     if 'indexed_files' not in st.session_state:
         st.session_state.indexed_files = {
             'abinitio': [],
+            'hadoop': [],
+            'databricks': [],
             'autosys': [],
             'documents': []
         }
@@ -980,6 +988,8 @@ def render_database_management():
             "Clear Specific Collection",
             "Clear All Collections",
             "Re-index Ab Initio",
+            "Re-index Hadoop",
+            "Re-index Databricks",
             "Re-index Autosys",
             "Re-index Documents",
             "Re-index Everything",
@@ -996,6 +1006,12 @@ def render_database_management():
 
     elif operation == "Re-index Ab Initio":
         render_reindex_abinitio_ui()
+
+    elif operation == "Re-index Hadoop":
+        render_reindex_hadoop_ui()
+
+    elif operation == "Re-index Databricks":
+        render_reindex_databricks_ui()
 
     elif operation == "Re-index Autosys":
         render_reindex_autosys_ui()
@@ -1142,6 +1158,62 @@ def render_reindex_autosys_ui():
             reindex_autosys_from_directory(directory_path)
         elif uploaded_files:
             reindex_autosys_from_upload(uploaded_files)
+        else:
+            st.error("Please provide a directory path or upload files")
+
+
+def render_reindex_hadoop_ui():
+    """UI for re-indexing Hadoop"""
+    st.markdown("#### 🔄 Re-index Hadoop")
+
+    st.info("Index Hadoop workflows (Pig, Hive, Oozie XML)")
+
+    # Option 1: Directory path
+    st.markdown("**Option 1: Index from Directory**")
+    directory_path = st.text_input("Hadoop Directory Path", placeholder="/path/to/hadoop")
+
+    # Option 2: File upload
+    st.markdown("**Option 2: Upload Files**")
+    uploaded_files = st.file_uploader(
+        "Upload Hadoop files",
+        accept_multiple_files=True,
+        type=['pig', 'hql', 'xml', 'py'],
+        key="hadoop_upload"
+    )
+
+    if st.button("Start Indexing", type="primary"):
+        if directory_path and Path(directory_path).exists():
+            reindex_hadoop_from_directory(directory_path)
+        elif uploaded_files:
+            reindex_hadoop_from_upload(uploaded_files)
+        else:
+            st.error("Please provide a directory path or upload files")
+
+
+def render_reindex_databricks_ui():
+    """UI for re-indexing Databricks"""
+    st.markdown("#### 🔄 Re-index Databricks")
+
+    st.info("Index Databricks notebooks (Python, Scala, SQL)")
+
+    # Option 1: Directory path
+    st.markdown("**Option 1: Index from Directory**")
+    directory_path = st.text_input("Databricks Directory Path", placeholder="/path/to/databricks")
+
+    # Option 2: File upload
+    st.markdown("**Option 2: Upload Files**")
+    uploaded_files = st.file_uploader(
+        "Upload Databricks notebooks",
+        accept_multiple_files=True,
+        type=['py', 'scala', 'sql', 'ipynb'],
+        key="databricks_upload"
+    )
+
+    if st.button("Start Indexing", type="primary"):
+        if directory_path and Path(directory_path).exists():
+            reindex_databricks_from_directory(directory_path)
+        elif uploaded_files:
+            reindex_databricks_from_upload(uploaded_files)
         else:
             st.error("Please provide a directory path or upload files")
 
@@ -1305,6 +1377,122 @@ def reindex_autosys_from_directory(directory_path: str):
 
 def reindex_autosys_from_upload(uploaded_files):
     """Re-index Autosys from uploaded files"""
+    index_uploaded_files(uploaded_files)
+
+
+def reindex_hadoop_from_directory(directory_path: str):
+    """Re-index Hadoop from directory"""
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+
+    try:
+        status_text.text("Parsing Hadoop workflows...")
+        progress_bar.progress(20)
+
+        parser = HadoopParser()
+        result = parser.parse_directory(directory_path)
+
+        progress_bar.progress(50)
+        status_text.text("Indexing workflows and scripts...")
+
+        if st.session_state.indexer and result.get("processes"):
+            # Create documents from parsed processes/components
+            documents = []
+            for process in result.get("processes", []):
+                doc = {
+                    "id": process.id,
+                    "content": f"{process.name}\n{process.description or ''}",
+                    "doc_type": "hadoop_workflow",
+                    "system": "hadoop",
+                    "metadata": {
+                        "process_name": process.name,
+                        "source_path": process.source_path
+                    }
+                }
+                documents.append(doc)
+
+            # Index documents
+            st.session_state.indexer.collections["hadoop_collection"].index_documents(documents)
+
+            progress_bar.progress(100)
+            status_text.empty()
+
+            st.success(f"✓ Indexed {len(documents)} Hadoop workflows")
+
+            # Refresh stats
+            st.session_state.stats = st.session_state.indexer.get_stats()
+            st.session_state.indexed_files['hadoop'] = st.session_state.indexed_files.get('hadoop', [])
+            st.session_state.indexed_files['hadoop'].append(f"Directory: {directory_path}")
+        else:
+            st.warning("No Hadoop workflows found in the directory")
+
+    except Exception as e:
+        st.error(f"Error indexing Hadoop: {e}")
+        logger.error(f"Hadoop indexing error: {e}", exc_info=True)
+    finally:
+        progress_bar.empty()
+
+
+def reindex_hadoop_from_upload(uploaded_files):
+    """Re-index Hadoop from uploaded files"""
+    index_uploaded_files(uploaded_files)
+
+
+def reindex_databricks_from_directory(directory_path: str):
+    """Re-index Databricks from directory"""
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+
+    try:
+        status_text.text("Parsing Databricks notebooks...")
+        progress_bar.progress(20)
+
+        parser = DatabricksParser()
+        result = parser.parse_directory(directory_path)
+
+        progress_bar.progress(50)
+        status_text.text("Indexing notebooks...")
+
+        if st.session_state.indexer and result.get("processes"):
+            # Create documents from parsed processes/components
+            documents = []
+            for process in result.get("processes", []):
+                doc = {
+                    "id": process.id,
+                    "content": f"{process.name}\n{process.description or ''}",
+                    "doc_type": "databricks_notebook",
+                    "system": "databricks",
+                    "metadata": {
+                        "process_name": process.name,
+                        "source_path": process.source_path
+                    }
+                }
+                documents.append(doc)
+
+            # Index documents
+            st.session_state.indexer.collections["databricks_collection"].index_documents(documents)
+
+            progress_bar.progress(100)
+            status_text.empty()
+
+            st.success(f"✓ Indexed {len(documents)} Databricks notebooks")
+
+            # Refresh stats
+            st.session_state.stats = st.session_state.indexer.get_stats()
+            st.session_state.indexed_files['databricks'] = st.session_state.indexed_files.get('databricks', [])
+            st.session_state.indexed_files['databricks'].append(f"Directory: {directory_path}")
+        else:
+            st.warning("No Databricks notebooks found in the directory")
+
+    except Exception as e:
+        st.error(f"Error indexing Databricks: {e}")
+        logger.error(f"Databricks indexing error: {e}", exc_info=True)
+    finally:
+        progress_bar.empty()
+
+
+def reindex_databricks_from_upload(uploaded_files):
+    """Re-index Databricks from uploaded files"""
     index_uploaded_files(uploaded_files)
 
 
