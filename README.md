@@ -1,183 +1,342 @@
-python -c "import os; from dotenv import load_dotenv; load_dotenv(); print('API Key:', os.getenv('AZURE_OPENAI_API_KEY')[:20] + '...' if os.getenv('AZURE_OPENAI_API_KEY') else 'NOT FOUND'); print('Endpoint:', os.getenv('AZURE_OPENAI_ENDPOINT'))"
-
-
 """
-Quick Verification Script - Test STAG Initialization
-====================================================
+Local Vector Search Client
+FREE alternative to Azure AI Search using ChromaDB and sentence-transformers
 
-Run this to verify all components initialize correctly
+Uses:
+- ChromaDB: Free, local, persistent vector database
+- sentence-transformers: Free embeddings (no API key needed)
+- Runs completely offline
 """
 
-import sys
+import os
+from pathlib import Path
+from typing import List, Dict, Optional, Any
 from loguru import logger
 
-logger.info("=" * 60)
-logger.info("STAG Initialization Verification")
-logger.info("=" * 60)
-
-# Test 1: Import all required modules
-logger.info("\n[Test 1] Importing modules...")
 try:
-    from services.multi_collection_indexer import MultiCollectionIndexer
-    from services.ai_script_analyzer import AIScriptAnalyzer
-    from services.chat.chat_orchestrator import create_chat_orchestrator
-    from services.chat.query_classifier import QueryClassifier
-    from services.lineage.lineage_agents import (
-        ParsingAgent, LogicAgent, MappingAgent, SimilarityAgent, LineageAgent
-    )
-    logger.info("✓ All imports successful")
-except Exception as e:
-    logger.error(f"✗ Import failed: {e}")
-    sys.exit(1)
+    import chromadb
+    from chromadb.config import Settings
+    from sentence_transformers import SentenceTransformer
+    CHROMA_AVAILABLE = True
+except ImportError:
+    CHROMA_AVAILABLE = False
+    logger.warning("ChromaDB or sentence-transformers not installed. Run: pip install chromadb sentence-transformers")
 
-# Test 2: Initialize MultiCollectionIndexer
-logger.info("\n[Test 2] Initializing MultiCollectionIndexer...")
-try:
-    indexer = MultiCollectionIndexer(vector_db_path="./outputs/vector_db")
-    stats = indexer.get_stats()
-    logger.info(f"✓ Indexer initialized with {len(stats)} collections")
 
-    # Show collection stats
-    for collection, data in stats.items():
-        doc_count = data.get('total_documents', 0)
-        logger.info(f"  - {collection}: {doc_count} documents")
-except Exception as e:
-    logger.error(f"✗ Indexer initialization failed: {e}")
-    sys.exit(1)
+class LocalSearchClient:
+    """
+    Local vector search client using ChromaDB
 
-# Test 3: Initialize AI Analyzer
-logger.info("\n[Test 3] Initializing AI Analyzer...")
-try:
-    ai_analyzer = AIScriptAnalyzer()
-    if ai_analyzer.enabled:
-        logger.info("✓ AI Analyzer initialized (Azure OpenAI enabled)")
-    else:
-        logger.warning("⚠ AI Analyzer initialized (No Azure OpenAI - search-only mode)")
-except Exception as e:
-    logger.error(f"✗ AI Analyzer initialization failed: {e}")
-    sys.exit(1)
+    FREE alternative to Azure AI Search
+    - No API keys needed
+    - Runs locally
+    - Persistent storage
+    - Fast vector search
+    """
 
-# Test 4: Initialize Chat Orchestrator
-logger.info("\n[Test 4] Initializing Chat Orchestrator...")
-try:
-    orchestrator = create_chat_orchestrator(
-        ai_analyzer=ai_analyzer,
-        indexer=indexer,
-        vector_store=None
-    )
-    logger.info("✓ Chat Orchestrator initialized")
-    logger.info(f"  - Agents: ParsingAgent, LogicAgent, MappingAgent, SimilarityAgent, LineageAgent")
-except Exception as e:
-    logger.error(f"✗ Chat Orchestrator initialization failed: {e}")
-    logger.error(f"  Error details: {type(e).__name__}: {str(e)}")
-    sys.exit(1)
+    def __init__(self, persist_directory: str = "./outputs/vector_db"):
+        """
+        Initialize local search client
 
-# Test 5: Initialize Individual Agents
-logger.info("\n[Test 5] Testing individual agent initialization...")
-try:
-    logger.info("  - Testing ParsingAgent...")
-    parsing_agent = ParsingAgent(indexer=indexer, ai_analyzer=ai_analyzer)
-    logger.info("    ✓ ParsingAgent OK")
+        Args:
+            persist_directory: Where to store the vector database
+        """
+        if not CHROMA_AVAILABLE:
+            raise ImportError(
+                "ChromaDB and sentence-transformers required. "
+                "Install with: pip install chromadb sentence-transformers"
+            )
 
-    logger.info("  - Testing LogicAgent...")
-    logic_agent = LogicAgent(ai_analyzer=ai_analyzer)
-    logger.info("    ✓ LogicAgent OK")
+        self.persist_directory = Path(persist_directory)
+        self.persist_directory.mkdir(parents=True, exist_ok=True)
 
-    logger.info("  - Testing MappingAgent...")
-    mapping_agent = MappingAgent()
-    logger.info("    ✓ MappingAgent OK")
+        logger.info(f"Initializing local vector search at: {self.persist_directory}")
 
-    logger.info("  - Testing SimilarityAgent...")
-    similarity_agent = SimilarityAgent(indexer=indexer)
-    logger.info("    ✓ SimilarityAgent OK")
+        # Initialize ChromaDB
+        self.client = chromadb.PersistentClient(
+            path=str(self.persist_directory),
+            settings=Settings(
+                anonymized_telemetry=False,
+                allow_reset=True,
+            ),
+        )
 
-    logger.info("  - Testing LineageAgent...")
-    lineage_agent = LineageAgent()
-    logger.info("    ✓ LineageAgent OK")
+        # Initialize embedding model (free, runs locally)
+        logger.info("Loading sentence-transformers model (this may take a moment first time)...")
+        self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+        # This model is:
+        # - FREE
+        # - Lightweight (80MB)
+        # - Fast
+        # - Good quality (384 dimensions)
+        # - Runs on CPU
+        logger.info("✓ Embedding model loaded")
 
-    logger.info("✓ All agents initialized successfully")
-except Exception as e:
-    logger.error(f"✗ Agent initialization failed: {e}")
-    sys.exit(1)
+        self.collection = None
 
-# Test 6: Test Query Classification
-logger.info("\n[Test 6] Testing query classification...")
-try:
-    classifier = QueryClassifier(ai_analyzer=ai_analyzer)
+    def create_index(self, index_name: str = "codebase"):
+        """
+        Create or get collection (equivalent to Azure AI Search index)
 
-    test_queries = [
-        "What parsers are available?",
-        "Compare Ab Initio customer_load with Hadoop customer_etl",
-        "Trace lineage of customer_id field",
-        "Explain how the aggregation works"
+        Args:
+            index_name: Name of the collection/index
+        """
+        try:
+            self.collection = self.client.get_or_create_collection(
+                name=index_name,
+                metadata={"description": "Codebase intelligence search"},
+            )
+            logger.info(f"✓ Collection '{index_name}' ready")
+        except Exception as e:
+            logger.error(f"Error creating collection: {e}")
+            raise
+
+    def index_documents(self, documents: List[Dict[str, Any]]):
+        """
+        Index documents into the vector database
+
+        Args:
+            documents: List of documents to index
+                      Each doc should have: id, content, doc_type, system, metadata
+        """
+        if not self.collection:
+            self.create_index()
+
+        logger.info(f"Indexing {len(documents)} documents...")
+
+        try:
+            # CRITICAL FIX: Deduplicate documents by ID before processing
+            # ChromaDB's upsert() requires unique IDs within a single batch
+            # Keep the last occurrence of each ID
+            seen_ids = {}
+            for doc in documents:
+                doc_id = doc.get("id", "")
+                if doc_id:
+                    seen_ids[doc_id] = doc
+
+            unique_documents = list(seen_ids.values())
+
+            if len(unique_documents) < len(documents):
+                duplicates_removed = len(documents) - len(unique_documents)
+                logger.warning(f"⚠️ Removed {duplicates_removed} duplicate documents with same IDs")
+
+            # Extract components
+            ids = []
+            texts = []
+            metadatas = []
+
+            for doc in unique_documents:
+                doc_id = doc.get("id", "")
+                content = doc.get("content", "")
+
+                if not doc_id or not content:
+                    logger.warning(f"Skipping document with missing id or content")
+                    continue
+
+                ids.append(doc_id)
+                texts.append(content)
+
+                # Metadata (ChromaDB requires dict of strings/numbers/bools)
+                metadata = {
+                    "doc_type": str(doc.get("doc_type", "")),
+                    "system": str(doc.get("system", "")),
+                    "title": str(doc.get("title", ""))[:500],  # Limit length
+                }
+
+                # Add any additional metadata
+                if "metadata" in doc and isinstance(doc["metadata"], dict):
+                    for key, value in doc["metadata"].items():
+                        if isinstance(value, (str, int, float, bool)):
+                            metadata[key] = value
+
+                metadatas.append(metadata)
+
+            # Generate embeddings
+            logger.info("Generating embeddings...")
+            embeddings = self.embedding_model.encode(texts, show_progress_bar=True)
+
+            # Upsert to collection (update existing or insert new)
+            # This prevents "duplicate ID" errors when re-indexing
+            self.collection.upsert(
+                ids=ids,
+                embeddings=embeddings.tolist(),
+                documents=texts,
+                metadatas=metadatas,
+            )
+
+            logger.info(f"✓ Indexed {len(ids)} documents successfully (upserted)")
+
+        except Exception as e:
+            logger.error(f"Error indexing documents: {e}")
+            raise
+
+    def search(
+        self,
+        query: str,
+        top: int = 5,
+        filters: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Search the vector database
+
+        Args:
+            query: Search query
+            top: Number of results to return
+            filters: Optional filters (e.g., {"doc_type": "process"})
+
+        Returns:
+            Dict with "results" key containing list of search results
+        """
+        if not self.collection:
+            logger.warning("No collection initialized")
+            return {"results": [], "total": 0}
+
+        try:
+            # Generate query embedding
+            query_embedding = self.embedding_model.encode([query])[0]
+
+            # Build where clause for filters
+            where_clause = None
+            if filters:
+                where_clause = {k: {"$eq": v} for k, v in filters.items()}
+
+            # Search
+            results = self.collection.query(
+                query_embeddings=[query_embedding.tolist()],
+                n_results=top,
+                where=where_clause,
+            )
+
+            # Format results
+            search_results = []
+            if results and "ids" in results and results["ids"]:
+                for i, doc_id in enumerate(results["ids"][0]):
+                    result = {
+                        "id": doc_id,
+                        "content": results["documents"][0][i] if "documents" in results else "",
+                        "metadata": results["metadatas"][0][i] if "metadatas" in results else {},
+                        "score": float(results["distances"][0][i]) if "distances" in results else 0.0,
+                    }
+                    search_results.append(result)
+
+            return {
+                "results": search_results,
+                "total": len(search_results),
+            }
+
+        except Exception as e:
+            logger.error(f"Error searching: {e}")
+            return {"results": [], "total": 0, "error": str(e)}
+
+    def hybrid_search(
+        self,
+        query: str,
+        top: int = 5,
+        filters: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Hybrid search (semantic + keyword)
+
+        For ChromaDB, we'll use semantic search (keyword search requires additional setup)
+
+        Args:
+            query: Search query
+            top: Number of results
+            filters: Optional filters
+
+        Returns:
+            Dict with "results" key containing list of search results
+        """
+        # For now, just use semantic search
+        # ChromaDB doesn't have built-in keyword search like Azure AI Search
+        return self.search(query, top, filters)
+
+    def delete_index(self, index_name: str = "codebase"):
+        """Delete the collection/index"""
+        try:
+            self.client.delete_collection(name=index_name)
+            logger.info(f"✓ Deleted collection '{index_name}'")
+        except Exception as e:
+            logger.error(f"Error deleting collection: {e}")
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Get collection statistics"""
+        if not self.collection:
+            return {
+                "error": "No collection initialized",
+                "document_count": 0,
+                "collection_count": 0,
+            }
+
+        try:
+            count = self.collection.count()
+            return {
+                "document_count": count,  # Use consistent key name
+                "total_documents": count,  # Keep for backwards compatibility
+                "collection_count": 1,
+                "collection_name": self.collection.name,
+                "persist_directory": str(self.persist_directory),
+            }
+        except Exception as e:
+            logger.error(f"Error getting stats: {e}")
+            return {
+                "error": str(e),
+                "document_count": 0,
+                "collection_count": 0,
+            }
+
+
+# Convenience function for quick testing
+def test_local_search():
+    """Test the local search client"""
+    print("Testing Local Search Client...")
+
+    client = LocalSearchClient()
+    client.create_index("test_index")
+
+    # Test documents
+    docs = [
+        {
+            "id": "doc1",
+            "content": "This is a Python script that processes patient data",
+            "doc_type": "component",
+            "system": "hadoop",
+            "title": "Patient Data Processor",
+        },
+        {
+            "id": "doc2",
+            "content": "SQL query to extract hospital information from database",
+            "doc_type": "component",
+            "system": "hadoop",
+            "title": "Hospital Query",
+        },
+        {
+            "id": "doc3",
+            "content": "Data transformation pipeline for claims processing",
+            "doc_type": "process",
+            "system": "databricks",
+            "title": "Claims Pipeline",
+        },
     ]
 
-    for query in test_queries:
-        classified = classifier.classify(query)
-        logger.info(f"  - '{query[:40]}...'")
-        logger.info(f"    Intent: {classified.intent.value} ({classified.confidence:.0%})")
+    # Index
+    client.index_documents(docs)
 
-    logger.info("✓ Query classification working")
-except Exception as e:
-    logger.error(f"✗ Query classification failed: {e}")
-    sys.exit(1)
+    # Search
+    results = client.search("patient data", top=2)
+    print(f"\nSearch results for 'patient data':")
+    for i, result in enumerate(results):
+        print(f"  {i+1}. {result['metadata'].get('title', 'N/A')} (score: {result['score']:.4f})")
+        print(f"      {result['content'][:80]}...")
 
-# Test 7: Verify analyze_with_context method exists
-logger.info("\n[Test 7] Verifying AIScriptAnalyzer.analyze_with_context...")
-try:
-    if hasattr(ai_analyzer, 'analyze_with_context'):
-        logger.info("✓ analyze_with_context method exists")
+    # Stats
+    stats = client.get_stats()
+    print(f"\nStats: {stats}")
 
-        # Test with AI disabled (should return graceful message)
-        result = ai_analyzer.analyze_with_context("test query", "test context")
-        if isinstance(result, dict) and ('analysis' in result or 'response' in result):
-            logger.info("✓ Method returns correct format")
-        else:
-            logger.warning("⚠ Method returns unexpected format")
-    else:
-        logger.error("✗ analyze_with_context method missing")
-        sys.exit(1)
-except Exception as e:
-    logger.error(f"✗ Error testing analyze_with_context: {e}")
-    sys.exit(1)
+    # Cleanup
+    client.delete_index("test_index")
+    print("\n✓ Test completed")
 
-# Test 8: Verify search_multi_collection method exists
-logger.info("\n[Test 8] Verifying MultiCollectionIndexer.search_multi_collection...")
-try:
-    if hasattr(indexer, 'search_multi_collection'):
-        logger.info("✓ search_multi_collection method exists")
-    else:
-        logger.error("✗ search_multi_collection method missing")
-        sys.exit(1)
-except Exception as e:
-    logger.error(f"✗ Error checking search_multi_collection: {e}")
-    sys.exit(1)
 
-# Final Summary
-logger.info("\n" + "=" * 60)
-logger.info("VERIFICATION COMPLETE")
-logger.info("=" * 60)
-logger.info("\n✅ All tests passed! Your STAG system is ready to use.\n")
-logger.info("Key findings:")
-if ai_analyzer.enabled:
-    logger.info("  ✓ Azure OpenAI: ENABLED (AI features available)")
-else:
-    logger.info("  ⚠ Azure OpenAI: DISABLED (search-only mode)")
-    logger.info("    To enable AI features, add credentials to .env:")
-    logger.info("    - AZURE_OPENAI_API_KEY")
-    logger.info("    - AZURE_OPENAI_ENDPOINT")
-    logger.info("    - AZURE_OPENAI_DEPLOYMENT_NAME")
-
-total_docs = sum(data.get('total_documents', 0) for data in stats.values())
-logger.info(f"  ✓ Total documents indexed: {total_docs}")
-logger.info(f"  ✓ Collections available: {len(stats)}")
-
-logger.info("\nNext steps:")
-if total_docs == 0:
-    logger.info("  1. Index your codebase: ./reindex.sh")
-    logger.info("  2. Launch STAG: streamlit run stag_app.py")
-else:
-    logger.info("  1. Launch STAG: streamlit run stag_app.py")
-    logger.info("  2. Try query: 'What parsers are available?'")
-logger.info("  3. Open browser: http://localhost:8501")
-logger.info("\n" + "=" * 60)
+if __name__ == "__main__":
+    test_local_search()
