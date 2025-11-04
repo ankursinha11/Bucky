@@ -42,6 +42,9 @@ from services.rag_chatbot_integrated import CodebaseRAGChatbot
 # AI Analyzer
 from services.ai_script_analyzer import AIScriptAnalyzer
 
+# STTM Generator
+from services.lineage.sttm_generator import STTMGenerator
+
 # UI Components
 from ui.lineage_tab import render_lineage_tab
 
@@ -1457,42 +1460,364 @@ Related Components ({len(related_components)}):
     return document
 
 
+def index_all_repository_files_with_ai(
+    repository_path: str,
+    system_type: str,
+    ai_analyzer,
+    sttm_generator: STTMGenerator,
+    progress_bar=None,
+    status_text=None
+) -> Dict[str, Any]:
+    """
+    Deep repository indexing - Index ALL files with AI understanding
+
+    This addresses the user's requirement to index every script, not just workflows.
+    When a workflow references a script (e.g., get_date.sh), this finds and indexes it too.
+
+    Args:
+        repository_path: Root directory of repository
+        system_type: System type (hadoop, abinitio, databricks)
+        ai_analyzer: AI analyzer for understanding scripts
+        sttm_generator: STTM generator for creating mappings
+        progress_bar: Streamlit progress bar
+        status_text: Streamlit status text widget
+
+    Returns:
+        Dict with indexing statistics
+    """
+    from pathlib import Path
+    import re
+
+    repo_path = Path(repository_path)
+
+    # Define file extensions by system type
+    file_extensions = {
+        'hadoop': ['.pig', '.hql', '.xml', '.sh', '.py', '.properties', '.sql'],
+        'abinitio': ['.mp', '.dml', '.ksh', '.sh', '.pl'],
+        'databricks': ['.py', '.sql', '.scala', '.ipynb', '.sh']
+    }
+
+    extensions = file_extensions.get(system_type, ['.sh', '.py', '.sql'])
+
+    # Find all relevant files recursively
+    all_files = []
+    for ext in extensions:
+        all_files.extend(repo_path.rglob(f'*{ext}'))
+
+    total_files = len(all_files)
+
+    if status_text:
+        status_text.text(f"📁 Found {total_files} files to index with AI understanding...")
+
+    documents = []
+    sttm_mappings = []
+    file_references = {}  # Track which files reference which other files
+
+    # Create output directories
+    output_base = Path("./outputs/ai_enriched_docs") / system_type
+    output_base.mkdir(parents=True, exist_ok=True)
+
+    sttm_output = Path("./outputs/sttm_mappings") / system_type
+    sttm_output.mkdir(parents=True, exist_ok=True)
+
+    # Index each file with AI understanding
+    for idx, file_path in enumerate(all_files):
+        try:
+            if progress_bar:
+                progress_bar.progress(int((idx / total_files) * 90))
+
+            if status_text:
+                relative_path = file_path.relative_to(repo_path)
+                status_text.text(f"🤖 AI analyzing {idx+1}/{total_files}: {relative_path}")
+
+            # Read file content
+            try:
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read()
+            except Exception as e:
+                logger.warning(f"Could not read {file_path}: {e}")
+                continue
+
+            # Skip empty files
+            if not content.strip():
+                continue
+
+            # Extract file references (scripts calling other scripts)
+            referenced_files = _extract_file_references(content, system_type)
+            if referenced_files:
+                file_references[str(file_path)] = referenced_files
+
+            # Use AI to understand the file
+            ai_understanding = ""
+            if ai_analyzer and ai_analyzer.enabled:
+                try:
+                    analysis_result = ai_analyzer.analyze_with_context(
+                        query=f"""Analyze this {system_type} script and provide:
+1. What does this script do? (1-2 sentences)
+2. Input sources (tables, files, databases)
+3. Output targets (tables, files, databases)
+4. Key transformations and business logic
+5. Dependencies on other scripts/files
+6. Data fields being processed""",
+                        context=f"""
+File: {file_path.name}
+Path: {file_path.relative_to(repo_path)}
+Type: {file_path.suffix}
+System: {system_type}
+
+Content (first 8000 chars):
+{content[:8000]}
+"""
+                    )
+                    ai_understanding = analysis_result.get('analysis', analysis_result.get('response', ''))
+                except Exception as e:
+                    logger.warning(f"AI analysis failed for {file_path.name}: {e}")
+                    ai_understanding = "AI analysis not available"
+            else:
+                ai_understanding = "AI analysis not available (Azure OpenAI not configured)"
+
+            # Create comprehensive document
+            file_id = f"{system_type}_{file_path.stem}_{hash(str(file_path)) % 100000}"
+
+            doc_content = f"""# {file_path.name}
+
+**System:** {system_type.upper()}
+**Path:** {file_path.relative_to(repo_path)}
+**Type:** {file_path.suffix}
+**Size:** {len(content)} characters
+
+## AI Understanding
+{ai_understanding}
+
+## File References
+{', '.join(referenced_files) if referenced_files else 'No external references found'}
+
+## Code Content (Preview)
+```
+{content[:2000]}
+...
+```
+
+## Full Content (Searchable)
+{content}
+"""
+
+            document = {
+                "id": file_id,
+                "content": doc_content,
+                "doc_type": f"{system_type}_script",
+                "system": system_type,
+                "title": f"Script: {file_path.name}",
+                "metadata": {
+                    "file_name": file_path.name,
+                    "file_path": str(file_path.relative_to(repo_path)),
+                    "file_type": file_path.suffix,
+                    "has_ai_analysis": bool(ai_analyzer and ai_analyzer.enabled),
+                    "references_count": len(referenced_files),
+                    "file_size": len(content)
+                }
+            }
+
+            documents.append(document)
+
+            # Save document to disk
+            doc_file = output_base / f"{file_path.stem}_{hash(str(file_path)) % 10000}.json"
+            with open(doc_file, 'w', encoding='utf-8') as f:
+                json.dump(document, f, indent=2, default=str)
+
+            # Generate STTM mappings if possible
+            if sttm_generator:
+                try:
+                    file_sttm = _generate_sttm_from_script(
+                        file_path=file_path,
+                        content=content,
+                        ai_understanding=ai_understanding,
+                        system_type=system_type,
+                        sttm_generator=sttm_generator
+                    )
+                    sttm_mappings.extend(file_sttm)
+                except Exception as e:
+                    logger.warning(f"STTM generation failed for {file_path.name}: {e}")
+
+        except Exception as e:
+            logger.error(f"Error processing {file_path}: {e}")
+            continue
+
+    # Save STTM mappings
+    if sttm_mappings:
+        sttm_file = sttm_output / f"sttm_mappings_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        sttm_generator.export_to_json(sttm_mappings, str(sttm_file))
+
+        sttm_excel = sttm_output / f"sttm_mappings_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        sttm_generator.export_to_excel(sttm_mappings, str(sttm_excel))
+
+        if status_text:
+            status_text.text(f"✓ Generated {len(sttm_mappings)} STTM mappings")
+
+    # Save file references map
+    references_file = output_base / "file_references_map.json"
+    with open(references_file, 'w', encoding='utf-8') as f:
+        json.dump(file_references, f, indent=2)
+
+    return {
+        "total_files": total_files,
+        "documents_created": len(documents),
+        "sttm_mappings": len(sttm_mappings),
+        "documents": documents,
+        "file_references": file_references,
+        "output_dir": str(output_base),
+        "sttm_dir": str(sttm_output) if sttm_mappings else None
+    }
+
+
+def _extract_file_references(content: str, system_type: str) -> List[str]:
+    """Extract references to other files from script content"""
+    references = []
+
+    # Common patterns for file references
+    patterns = [
+        r'source\s+([^\s;]+\.sh)',  # source script.sh
+        r'\./([^\s;]+\.sh)',  # ./script.sh
+        r'bash\s+([^\s;]+\.sh)',  # bash script.sh
+        r'sh\s+([^\s;]+\.sh)',  # sh script.sh
+        r'python\s+([^\s;]+\.py)',  # python script.py
+        r'pig\s+-f\s+([^\s;]+\.pig)',  # pig -f script.pig
+        r'hive\s+-f\s+([^\s;]+\.hql)',  # hive -f script.hql
+        r'spark-submit\s+([^\s;]+\.py)',  # spark-submit script.py
+        r'"([^"]+\.(?:sh|py|pig|hql|sql))"',  # "script.sh"
+        r"'([^']+\.(?:sh|py|pig|hql|sql))'",  # 'script.sh'
+    ]
+
+    for pattern in patterns:
+        matches = re.findall(pattern, content)
+        references.extend(matches)
+
+    return list(set(references))
+
+
+def _generate_sttm_from_script(
+    file_path: Path,
+    content: str,
+    ai_understanding: str,
+    system_type: str,
+    sttm_generator: STTMGenerator
+) -> List:
+    """Generate STTM mappings from a script using AI understanding"""
+    import re
+
+    mappings = []
+
+    # Extract table/field patterns based on system type
+    if system_type == 'hadoop':
+        # Look for INSERT INTO, CREATE TABLE, etc.
+        insert_pattern = r'INSERT\s+(?:INTO|OVERWRITE)\s+(?:TABLE\s+)?(\w+)'
+        create_pattern = r'CREATE\s+(?:TABLE|EXTERNAL\s+TABLE)\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)'
+
+        target_tables = set()
+        target_tables.update(re.findall(insert_pattern, content, re.IGNORECASE))
+        target_tables.update(re.findall(create_pattern, content, re.IGNORECASE))
+
+        # Look for column definitions
+        col_pattern = r'(\w+)\s+(?:STRING|INT|BIGINT|DOUBLE|FLOAT|BOOLEAN|DATE|TIMESTAMP)'
+        columns = re.findall(col_pattern, content, re.IGNORECASE)
+
+        # Create simple STTM mappings
+        for table in target_tables:
+            for idx, col in enumerate(columns[:20]):  # Limit to first 20 columns
+                from services.lineage.sttm_generator import STTMMapping
+
+                mapping = STTMMapping(
+                    id=f"{file_path.stem}_{table}_{col}_{idx}",
+                    partner="default",
+                    schema="default",
+                    target_table_name=table,
+                    target_field_name=col,
+                    target_field_data_type="string",
+                    is_primary_key=False,
+                    contains_pii=sttm_generator._detect_pii(col, ""),
+                    field_type=sttm_generator._classify_field_type(col, content),
+                    field_depends_on=[],
+                    processing_order=idx,
+                    pre_processing_rules=[],
+                    source_field_names=[col],
+                    source_dataset_name="unknown",
+                    field_definition=f"Field from {file_path.name}",
+                    transformation_logic=f"AI Understanding: {ai_understanding[:200]}",
+                    system_type=system_type,
+                    graph_name=file_path.stem,
+                    component_name=file_path.name,
+                    created_at=datetime.now().isoformat(),
+                    confidence_score=0.70,
+                    ai_reasoning=ai_understanding[:500]
+                )
+                mappings.append(mapping)
+
+    return mappings
+
+
 # ============================================
 # Indexing Helper Functions
 # ============================================
 
 def reindex_abinitio_from_directory(directory_path: str):
-    """Re-index Ab Initio from directory"""
+    """
+    Re-index Ab Initio with DEEP AI-powered understanding
+
+    This now indexes ALL files in the repository with AI understanding.
+    Generates STTM mappings and tracks dependencies.
+    """
     progress_bar = st.progress(0)
     status_text = st.empty()
 
     try:
-        status_text.text("Parsing Ab Initio files...")
-        progress_bar.progress(20)
+        # Initialize STTM generator if not already done
+        if 'sttm_generator' not in st.session_state:
+            st.session_state.sttm_generator = STTMGenerator(ai_analyzer=st.session_state.ai_analyzer)
 
-        parser = AbInitioParser()
-        result = parser.parse_directory(directory_path)
+        status_text.text("🔍 Scanning Ab Initio repository for ALL files...")
+        progress_bar.progress(10)
 
-        progress_bar.progress(50)
-        status_text.text("Indexing graphs and components...")
+        # Use deep indexing to index ALL files with AI
+        result = index_all_repository_files_with_ai(
+            repository_path=directory_path,
+            system_type="abinitio",
+            ai_analyzer=st.session_state.ai_analyzer,
+            sttm_generator=st.session_state.sttm_generator,
+            progress_bar=progress_bar,
+            status_text=status_text
+        )
 
-        if st.session_state.indexer:
-            stats = st.session_state.indexer.index_abinitio(
-                processes=result.get("processes", []),
-                components=result.get("components", [])
-            )
+        # Index all documents to vector database
+        if result["documents"]:
+            status_text.text("💾 Indexing to vector database...")
+            progress_bar.progress(95)
+            st.session_state.indexer.collections["abinitio_collection"].index_documents(result["documents"])
 
-            progress_bar.progress(100)
-            status_text.empty()
+        progress_bar.progress(100)
+        status_text.empty()
 
-            st.success(f"✓ Indexed {stats.get('graphs', 0)} graphs and {stats.get('components', 0)} components")
+        # Display results
+        st.success(f"✅ **Deep Indexing Complete!**")
+        st.info(f"""
+**Statistics:**
+- 📁 Total files scanned: {result['total_files']}
+- 📝 Documents created: {result['documents_created']}
+- 🎯 STTM mappings generated: {result['sttm_mappings']}
+- 🔗 File dependencies tracked: {len(result['file_references'])}
 
-            # Refresh stats
-            st.session_state.stats = st.session_state.indexer.get_stats()
-            st.session_state.indexed_files['abinitio'].append(f"Directory: {directory_path}")
+**Output Locations:**
+- AI-enriched documents: `{result['output_dir']}`
+- STTM mappings: `{result['sttm_dir'] or 'No mappings generated'}`
+- File references map: `{result['output_dir']}/file_references_map.json`
+        """)
+
+        # Refresh stats
+        st.session_state.stats = st.session_state.indexer.get_stats()
+        st.session_state.indexed_files['abinitio'].append(f"Directory: {directory_path} (DEEP)")
 
     except Exception as e:
-        st.error(f"Error indexing Ab Initio: {e}")
+        st.error(f"Error during deep indexing: {e}")
+        logger.error(f"Ab Initio deep indexing error: {e}", exc_info=True)
     finally:
         progress_bar.empty()
 
@@ -1543,56 +1868,65 @@ def reindex_autosys_from_upload(uploaded_files):
 
 
 def reindex_hadoop_from_directory(directory_path: str):
-    """Re-index Hadoop from directory with AI-powered understanding"""
+    """
+    Re-index Hadoop with DEEP AI-powered understanding
+
+    This now indexes ALL files in the repository, not just workflows.
+    Uses AI to understand each script, extracts STTM mappings, and tracks file dependencies.
+    """
     progress_bar = st.progress(0)
     status_text = st.empty()
 
     try:
-        status_text.text("Parsing Hadoop workflows...")
-        progress_bar.progress(20)
+        # Initialize STTM generator if not already done
+        if 'sttm_generator' not in st.session_state:
+            st.session_state.sttm_generator = STTMGenerator(ai_analyzer=st.session_state.ai_analyzer)
 
-        parser = HadoopParser()
-        result = parser.parse_directory(directory_path)
+        status_text.text("🔍 Scanning repository for ALL files...")
+        progress_bar.progress(10)
 
-        progress_bar.progress(40)
-        status_text.text("Using AI to understand workflows and create documents...")
+        # Use deep indexing to index ALL files with AI
+        result = index_all_repository_files_with_ai(
+            repository_path=directory_path,
+            system_type="hadoop",
+            ai_analyzer=st.session_state.ai_analyzer,
+            sttm_generator=st.session_state.sttm_generator,
+            progress_bar=progress_bar,
+            status_text=status_text
+        )
 
-        if st.session_state.indexer and result.get("processes"):
-            documents = []
+        # Index all documents to vector database
+        if result["documents"]:
+            status_text.text("💾 Indexing to vector database...")
+            progress_bar.progress(95)
+            st.session_state.indexer.collections["hadoop_collection"].index_documents(result["documents"])
 
-            # Process each workflow with AI understanding
-            for idx, process in enumerate(result.get("processes", [])):
-                progress_bar.progress(40 + int((idx / len(result["processes"])) * 40))
+        progress_bar.progress(100)
+        status_text.empty()
 
-                # Create AI-powered document
-                doc = create_intelligent_document(
-                    process=process,
-                    components=result.get("components", []),
-                    system_type="hadoop",
-                    ai_analyzer=st.session_state.ai_analyzer
-                )
-                documents.append(doc)
+        # Display results
+        st.success(f"✅ **Deep Indexing Complete!**")
+        st.info(f"""
+**Statistics:**
+- 📁 Total files scanned: {result['total_files']}
+- 📝 Documents created: {result['documents_created']}
+- 🎯 STTM mappings generated: {result['sttm_mappings']}
+- 🔗 File dependencies tracked: {len(result['file_references'])}
 
-            # Index documents
-            status_text.text("Indexing AI-enriched documents...")
-            progress_bar.progress(85)
-            st.session_state.indexer.collections["hadoop_collection"].index_documents(documents)
+**Output Locations:**
+- AI-enriched documents: `{result['output_dir']}`
+- STTM mappings: `{result['sttm_dir'] or 'No mappings generated'}`
+- File references map: `{result['output_dir']}/file_references_map.json`
+        """)
 
-            progress_bar.progress(100)
-            status_text.empty()
-
-            st.success(f"✓ Indexed {len(documents)} Hadoop workflows with AI understanding")
-
-            # Refresh stats
-            st.session_state.stats = st.session_state.indexer.get_stats()
-            st.session_state.indexed_files['hadoop'] = st.session_state.indexed_files.get('hadoop', [])
-            st.session_state.indexed_files['hadoop'].append(f"Directory: {directory_path}")
-        else:
-            st.warning("No Hadoop workflows found in the directory")
+        # Refresh stats
+        st.session_state.stats = st.session_state.indexer.get_stats()
+        st.session_state.indexed_files['hadoop'] = st.session_state.indexed_files.get('hadoop', [])
+        st.session_state.indexed_files['hadoop'].append(f"Directory: {directory_path} (DEEP)")
 
     except Exception as e:
-        st.error(f"Error indexing Hadoop: {e}")
-        logger.error(f"Hadoop indexing error: {e}", exc_info=True)
+        st.error(f"Error during deep indexing: {e}")
+        logger.error(f"Hadoop deep indexing error: {e}", exc_info=True)
     finally:
         progress_bar.empty()
 
