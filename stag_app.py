@@ -1520,6 +1520,10 @@ def index_all_repository_files_with_ai(
     sttm_output = Path("./outputs/sttm_mappings") / system_type
     sttm_output.mkdir(parents=True, exist_ok=True)
 
+    # Log what we're starting with
+    logger.info(f"AI Analyzer enabled: {ai_analyzer.enabled if ai_analyzer else 'None'}")
+    logger.info(f"STTM Generator available: {sttm_generator is not None}")
+
     # Index each file with AI understanding
     for idx, file_path in enumerate(all_files):
         try:
@@ -1540,6 +1544,7 @@ def index_all_repository_files_with_ai(
 
             # Skip empty files
             if not content.strip():
+                logger.debug(f"Skipping empty file: {file_path.name}")
                 continue
 
             # Extract file references (scripts calling other scripts)
@@ -1620,6 +1625,7 @@ Content (first 8000 chars):
             }
 
             documents.append(document)
+            logger.debug(f"✓ Created document for {file_path.name} (total: {len(documents)})")
 
             # Save document to disk
             doc_file = output_base / f"{file_path.stem}_{hash(str(file_path)) % 10000}.json"
@@ -1641,8 +1647,11 @@ Content (first 8000 chars):
                     logger.warning(f"STTM generation failed for {file_path.name}: {e}")
 
         except Exception as e:
-            logger.error(f"Error processing {file_path}: {e}")
+            logger.error(f"❌ Error processing {file_path}: {e}", exc_info=True)
             continue
+
+    # Log summary
+    logger.info(f"Finished processing {total_files} files, created {len(documents)} documents")
 
     # Save STTM mappings
     if sttm_mappings:
@@ -1879,9 +1888,19 @@ def reindex_hadoop_from_directory(directory_path: str):
     status_text = st.empty()
 
     try:
+        # Initialize AI analyzer if not already done
+        if 'ai_analyzer' not in st.session_state or st.session_state.ai_analyzer is None:
+            st.session_state.ai_analyzer = AIScriptAnalyzer()
+            logger.info("✓ AI Script Analyzer initialized")
+
         # Initialize STTM generator if not already done
         if 'sttm_generator' not in st.session_state:
             st.session_state.sttm_generator = STTMGenerator(ai_analyzer=st.session_state.ai_analyzer)
+            logger.info("✓ STTM Generator initialized")
+
+        # Log what we're working with
+        logger.info(f"Starting Hadoop re-indexing from: {directory_path}")
+        logger.info(f"AI Analyzer enabled: {st.session_state.ai_analyzer.enabled if st.session_state.ai_analyzer else False}")
 
         status_text.text("🔍 Scanning repository for ALL files...")
         progress_bar.progress(10)
@@ -1948,9 +1967,19 @@ def reindex_databricks_from_directory(directory_path: str):
     status_text = st.empty()
 
     try:
+        # Initialize AI analyzer if not already done
+        if 'ai_analyzer' not in st.session_state or st.session_state.ai_analyzer is None:
+            st.session_state.ai_analyzer = AIScriptAnalyzer()
+            logger.info("✓ AI Script Analyzer initialized")
+
         # Initialize STTM generator if not already done
         if 'sttm_generator' not in st.session_state:
             st.session_state.sttm_generator = STTMGenerator(ai_analyzer=st.session_state.ai_analyzer)
+            logger.info("✓ STTM Generator initialized")
+
+        # Log what we're working with
+        logger.info(f"Starting Databricks re-indexing from: {directory_path}")
+        logger.info(f"AI Analyzer enabled: {st.session_state.ai_analyzer.enabled if st.session_state.ai_analyzer else False}")
 
         status_text.text("🔍 Scanning repository for ALL files...")
         progress_bar.progress(10)
