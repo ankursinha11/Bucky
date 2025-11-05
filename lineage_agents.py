@@ -512,6 +512,36 @@ class SimilarityAgent:
         logger.info(f"✓ Found matches in {len(results)} systems")
         return results
 
+    def _read_actual_file_content(self, entity: Dict[str, Any]) -> Optional[str]:
+        """
+        Read actual file content from disk for deeper analysis
+
+        This enables agents to access full file content, not just indexed snippets.
+        Critical for in-depth comparison and analysis.
+        """
+        from pathlib import Path
+
+        # Get file path from metadata - try absolute path first
+        file_path = entity.get("metadata", {}).get("absolute_file_path")
+        if not file_path:
+            file_path = entity.get("metadata", {}).get("file_path")
+
+        if not file_path:
+            return None
+
+        # Try to read the file
+        try:
+            file_obj = Path(file_path)
+            if file_obj.exists() and file_obj.is_file():
+                with open(file_obj, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read()
+                    logger.debug(f"✓ Read {len(content)} chars from {file_path}")
+                    return content
+        except Exception as e:
+            logger.warning(f"Could not read file {file_path}: {e}")
+
+        return None
+
     def _build_search_query(self, entity_data: Dict[str, Any]) -> str:
         """Build search query from entity data"""
         entity_name = entity_data.get("entity_name", "")
@@ -539,12 +569,16 @@ class SimilarityAgent:
         """Calculate semantic similarity between entities"""
         # Use logic comparator if available
         try:
+            # ENHANCED: Read actual file content for deeper comparison
+            source_code = self._read_actual_file_content(source_entity)
+            target_code = self._read_actual_file_content(target_match)
+
             # FIXED: Format data correctly for LogicComparator
             system1_formatted = {
                 "system_name": source_entity.get("system", "unknown"),
                 "name": source_entity.get("entity_name", "unknown"),
                 "description": source_entity.get("description", ""),
-                "code": source_entity.get("content", source_entity.get("logic", "")),
+                "code": source_code or source_entity.get("content", source_entity.get("logic", "")),
                 "metadata": source_entity.get("metadata", {})
             }
 
@@ -552,7 +586,7 @@ class SimilarityAgent:
                 "system_name": target_match.get("metadata", {}).get("system", "unknown"),
                 "name": target_match.get("title", "unknown").replace("Script: ", ""),
                 "description": target_match.get("metadata", {}).get("description", ""),
-                "code": target_match.get("content", ""),
+                "code": target_code or target_match.get("content", ""),
                 "metadata": target_match.get("metadata", {})
             }
 
