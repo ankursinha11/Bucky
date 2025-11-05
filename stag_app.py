@@ -1611,6 +1611,7 @@ Content (first 8000 chars):
                 "metadata": {
                     "file_name": file_path.name,
                     "file_path": str(file_path.relative_to(repo_path)),
+                    "absolute_file_path": str(file_path),  # ADDED: Full path for agents to read actual files
                     "file_type": file_path.suffix,
                     "has_ai_analysis": bool(ai_analyzer and ai_analyzer.enabled),
                     "references_count": len(referenced_files),
@@ -1937,56 +1938,65 @@ def reindex_hadoop_from_upload(uploaded_files):
 
 
 def reindex_databricks_from_directory(directory_path: str):
-    """Re-index Databricks from directory with AI-powered understanding"""
+    """
+    Re-index Databricks with DEEP AI-powered understanding
+
+    This now indexes ALL files in the repository, not just workflows.
+    Uses AI to understand each script, extracts STTM mappings, and tracks file dependencies.
+    """
     progress_bar = st.progress(0)
     status_text = st.empty()
 
     try:
-        status_text.text("Parsing Databricks notebooks...")
-        progress_bar.progress(20)
+        # Initialize STTM generator if not already done
+        if 'sttm_generator' not in st.session_state:
+            st.session_state.sttm_generator = STTMGenerator(ai_analyzer=st.session_state.ai_analyzer)
 
-        parser = DatabricksParser()
-        result = parser.parse_directory(directory_path)
+        status_text.text("🔍 Scanning repository for ALL files...")
+        progress_bar.progress(10)
 
-        progress_bar.progress(40)
-        status_text.text("Using AI to understand notebooks and create documents...")
+        # Use deep indexing to index ALL files with AI
+        result = index_all_repository_files_with_ai(
+            repository_path=directory_path,
+            system_type="databricks",
+            ai_analyzer=st.session_state.ai_analyzer,
+            sttm_generator=st.session_state.sttm_generator,
+            progress_bar=progress_bar,
+            status_text=status_text
+        )
 
-        if st.session_state.indexer and result.get("processes"):
-            documents = []
+        # Index all documents to vector database
+        if result["documents"]:
+            status_text.text("💾 Indexing to vector database...")
+            progress_bar.progress(95)
+            st.session_state.indexer.collections["databricks_collection"].index_documents(result["documents"])
 
-            # Process each notebook with AI understanding
-            for idx, process in enumerate(result.get("processes", [])):
-                progress_bar.progress(40 + int((idx / len(result["processes"])) * 40))
+        progress_bar.progress(100)
+        status_text.empty()
 
-                # Create AI-powered document
-                doc = create_intelligent_document(
-                    process=process,
-                    components=result.get("components", []),
-                    system_type="databricks",
-                    ai_analyzer=st.session_state.ai_analyzer
-                )
-                documents.append(doc)
+        # Display results
+        st.success(f"✅ **Deep Indexing Complete!**")
+        st.info(f"""
+**Statistics:**
+- 📁 Total files scanned: {result['total_files']}
+- 📝 Documents created: {result['documents_created']}
+- 🎯 STTM mappings generated: {result['sttm_mappings']}
+- 🔗 File dependencies tracked: {len(result['file_references'])}
 
-            # Index documents
-            status_text.text("Indexing AI-enriched documents...")
-            progress_bar.progress(85)
-            st.session_state.indexer.collections["databricks_collection"].index_documents(documents)
+**Output Locations:**
+- AI-enriched documents: `{result['output_dir']}`
+- STTM mappings: `{result['sttm_dir'] or 'No mappings generated'}`
+- File references map: `{result['output_dir']}/file_references_map.json`
+        """)
 
-            progress_bar.progress(100)
-            status_text.empty()
-
-            st.success(f"✓ Indexed {len(documents)} Databricks notebooks with AI understanding")
-
-            # Refresh stats
-            st.session_state.stats = st.session_state.indexer.get_stats()
-            st.session_state.indexed_files['databricks'] = st.session_state.indexed_files.get('databricks', [])
-            st.session_state.indexed_files['databricks'].append(f"Directory: {directory_path}")
-        else:
-            st.warning("No Databricks notebooks found in the directory")
+        # Refresh stats
+        st.session_state.stats = st.session_state.indexer.get_stats()
+        st.session_state.indexed_files['databricks'] = st.session_state.indexed_files.get('databricks', [])
+        st.session_state.indexed_files['databricks'].append(f"Directory: {directory_path} (DEEP)")
 
     except Exception as e:
-        st.error(f"Error indexing Databricks: {e}")
-        logger.error(f"Databricks indexing error: {e}", exc_info=True)
+        st.error(f"Error during deep indexing: {e}")
+        logger.error(f"Databricks deep indexing error: {e}", exc_info=True)
     finally:
         progress_bar.empty()
 
