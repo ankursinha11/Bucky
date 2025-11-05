@@ -282,7 +282,7 @@ Description: {system1.get('description', 'N/A')}
 
 Code/Logic:
 ```
-{system1.get('code', system1.get('logic', 'N/A'))[:1500]}
+{system1.get('code', system1.get('logic', 'N/A'))[:5000]}
 ```
 
 **SYSTEM 2: {system2['system_name']}**
@@ -291,7 +291,7 @@ Description: {system2.get('description', 'N/A')}
 
 Code/Logic:
 ```
-{system2.get('code', system2.get('logic', 'N/A'))[:1500]}
+{system2.get('code', system2.get('logic', 'N/A'))[:5000]}
 ```
 """
 
@@ -308,7 +308,7 @@ Code/Logic:
                     {"role": "user", "content": user_prompt}
                 ],
                 temperature=0.1,
-                max_tokens=2000,
+                max_tokens=4000,  # INCREASED from 2000 to 4000 for in-depth comparison
             )
 
             content = response.choices[0].message.content
