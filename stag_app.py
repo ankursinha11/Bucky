@@ -48,6 +48,19 @@ from services.lineage.sttm_generator import STTMGenerator
 # UI Components
 from ui.lineage_tab import render_lineage_tab
 
+# ============================================
+# AB INITIO FILTERED GRAPHS (36 graphs)
+# ============================================
+# Only these graphs will be indexed for Ab Initio
+FILTERED_ABINITIO_GRAPHS = [
+    # Add your 36 graph names here
+    # Example format:
+    # "graph_customer_load",
+    # "graph_order_process",
+    # "graph_payment_validation",
+    # ... (add all 36 graph names)
+]
+
 # Chat orchestration
 from services.chat.chat_orchestrator import create_chat_orchestrator, UpdateType
 
@@ -1466,10 +1479,11 @@ def index_all_repository_files_with_ai(
     ai_analyzer,
     sttm_generator: STTMGenerator,
     progress_bar=None,
-    status_text=None
+    status_text=None,
+    file_filter: List[str] = None
 ) -> Dict[str, Any]:
     """
-    Deep repository indexing - Index ALL files with AI understanding
+    Deep repository indexing - Index ALL files (or filtered files) with AI understanding
 
     This addresses the user's requirement to index every script, not just workflows.
     When a workflow references a script (e.g., get_date.sh), this finds and indexes it too.
@@ -1481,6 +1495,7 @@ def index_all_repository_files_with_ai(
         sttm_generator: STTM generator for creating mappings
         progress_bar: Streamlit progress bar
         status_text: Streamlit status text widget
+        file_filter: Optional list of file name patterns to filter (for Ab Initio graphs)
 
     Returns:
         Dict with indexing statistics
@@ -1503,6 +1518,18 @@ def index_all_repository_files_with_ai(
     all_files = []
     for ext in extensions:
         all_files.extend(repo_path.rglob(f'*{ext}'))
+
+    # Apply file filter if provided (for Ab Initio graph filtering)
+    if file_filter:
+        filtered_files = []
+        for file_path in all_files:
+            # Check if file name (without extension) matches any filter pattern
+            file_name_no_ext = file_path.stem
+            if any(filter_pattern.lower() in file_name_no_ext.lower() for filter_pattern in file_filter):
+                filtered_files.append(file_path)
+
+        logger.info(f"Filtered from {len(all_files)} to {len(filtered_files)} files using {len(file_filter)} graph patterns")
+        all_files = filtered_files
 
     total_files = len(all_files)
 
@@ -1773,28 +1800,41 @@ def reindex_abinitio_from_directory(directory_path: str):
     """
     Re-index Ab Initio with DEEP AI-powered understanding
 
-    This now indexes ALL files in the repository with AI understanding.
+    IMPORTANT: Only indexes the 36 FILTERED graphs specified in FILTERED_ABINITIO_GRAPHS.
+    This filters from 1750+ files to only relevant graph files.
     Generates STTM mappings and tracks dependencies.
     """
     progress_bar = st.progress(0)
     status_text = st.empty()
 
     try:
+        # Initialize AI analyzer if not already done
+        if 'ai_analyzer' not in st.session_state or st.session_state.ai_analyzer is None:
+            st.session_state.ai_analyzer = AIScriptAnalyzer()
+            logger.info("✓ AI Script Analyzer initialized")
+
         # Initialize STTM generator if not already done
         if 'sttm_generator' not in st.session_state:
             st.session_state.sttm_generator = STTMGenerator(ai_analyzer=st.session_state.ai_analyzer)
+            logger.info("✓ STTM Generator initialized")
 
-        status_text.text("🔍 Scanning Ab Initio repository for ALL files...")
+        # Check if filter list is populated
+        if not FILTERED_ABINITIO_GRAPHS:
+            st.warning("⚠️ FILTERED_ABINITIO_GRAPHS is empty! Please add your 36 graph names to stag_app.py")
+            st.info("Without filtering, ALL files in the directory will be indexed.")
+
+        status_text.text(f"🔍 Scanning Ab Initio repository (filtering to {len(FILTERED_ABINITIO_GRAPHS)} graphs)...")
         progress_bar.progress(10)
 
-        # Use deep indexing to index ALL files with AI
+        # Use deep indexing with graph filtering
         result = index_all_repository_files_with_ai(
             repository_path=directory_path,
             system_type="abinitio",
             ai_analyzer=st.session_state.ai_analyzer,
             sttm_generator=st.session_state.sttm_generator,
             progress_bar=progress_bar,
-            status_text=status_text
+            status_text=status_text,
+            file_filter=FILTERED_ABINITIO_GRAPHS if FILTERED_ABINITIO_GRAPHS else None
         )
 
         # Index all documents to vector database
