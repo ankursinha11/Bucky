@@ -223,19 +223,202 @@ class ParsingAgent:
             return {"error": str(e)}
 
     def _parse_hadoop_entity(self, entity_name: str, file_path: Optional[str]) -> Dict[str, Any]:
-        """Parse Hadoop workflow"""
-        # Placeholder - extend based on your Hadoop parser
+        """
+        Parse Hadoop workflow by searching indexed data
+
+        Searches the hadoop_collection for scripts/workflows matching entity_name
+        and extracts transformation logic, tables, columns
+        """
+        logger.info(f"Parsing Hadoop entity: {entity_name}")
+
+        scripts = []
+        transformations = []
+        tables = []
+
+        # Use indexer to search for this entity if available
+        if self.indexer:
+            try:
+                search_results = self.indexer.search_multi_collection(
+                    query=entity_name,
+                    collections=["hadoop_collection"],
+                    top_k=10
+                )
+
+                if "hadoop_collection" in search_results:
+                    for result in search_results["hadoop_collection"]:
+                        metadata = result.get("metadata", {})
+                        content = result.get("content", "")
+                        file_name = metadata.get("file_name", "unknown")
+
+                        # Read actual file if available
+                        actual_content = self._read_actual_file_content(result)
+                        if actual_content:
+                            content = actual_content
+
+                        # Extract tables from content using AI if available
+                        script_data = {
+                            "file_name": file_name,
+                            "content": content,
+                            "file_path": metadata.get("absolute_file_path", metadata.get("file_path", "")),
+                            "metadata": metadata
+                        }
+
+                        # Use AI to extract tables/columns if available
+                        if self.ai_analyzer and content:
+                            try:
+                                ai_analysis = self.ai_analyzer.analyze_with_context(
+                                    query="Extract all table names (input and output), column names, and transformation logic from this script. Return in JSON format with 'input_tables', 'output_tables', 'columns', 'transformations'.",
+                                    context=content[:5000]  # Limit context
+                                )
+                                analysis_text = ai_analysis.get('analysis', '{}')
+
+                                # Try to parse JSON from AI response
+                                import json
+                                import re
+                                json_match = re.search(r'\{.*\}', analysis_text, re.DOTALL)
+                                if json_match:
+                                    parsed_data = json.loads(json_match.group())
+                                    script_data['input_tables'] = parsed_data.get('input_tables', [])
+                                    script_data['output_tables'] = parsed_data.get('output_tables', [])
+                                    script_data['columns'] = parsed_data.get('columns', [])
+                                    script_data['transformations'] = parsed_data.get('transformations', [])
+
+                                    # Add to global lists
+                                    tables.extend(parsed_data.get('input_tables', []))
+                                    tables.extend(parsed_data.get('output_tables', []))
+                                    transformations.extend(parsed_data.get('transformations', []))
+                            except Exception as e:
+                                logger.debug(f"Could not get AI analysis for {file_name}: {e}")
+
+                        scripts.append(script_data)
+
+                    logger.info(f"  ✓ Found {len(scripts)} Hadoop scripts for {entity_name}")
+            except Exception as e:
+                logger.warning(f"Error searching for Hadoop entity: {e}")
+
         return {
             "system": "hadoop",
             "entity_name": entity_name,
             "entity_type": "workflow",
-            "scripts": [],
-            "transformations": [],
-            "metadata": {}
+            "scripts": scripts,
+            "transformations": transformations,
+            "tables": list(set(tables)),  # Deduplicate
+            "metadata": {
+                "script_count": len(scripts),
+                "table_count": len(set(tables))
+            }
         }
 
+    def _read_actual_file_content(self, result: Dict[str, Any]) -> Optional[str]:
+        """Read actual file content from disk"""
+        from pathlib import Path
+
+        metadata = result.get("metadata", {})
+        file_path = metadata.get("absolute_file_path") or metadata.get("file_path")
+
+        if not file_path:
+            return None
+
+        try:
+            file_obj = Path(file_path)
+            if file_obj.exists() and file_obj.is_file():
+                with open(file_obj, 'r', encoding='utf-8', errors='ignore') as f:
+                    return f.read()
+        except Exception as e:
+            logger.debug(f"Could not read file {file_path}: {e}")
+
+        return None
+
     def _parse_databricks_entity(self, entity_name: str, file_path: Optional[str]) -> Dict[str, Any]:
-        """Parse Databricks notebook"""
+        """
+        Parse Databricks notebook by searching indexed data
+
+        Searches the databricks_collection for notebooks matching entity_name
+        and extracts transformation logic, tables, columns
+        """
+        logger.info(f"Parsing Databricks entity: {entity_name}")
+
+        notebooks = []
+        transformations = []
+        tables = []
+
+        # Use indexer to search for this entity if available
+        if self.indexer:
+            try:
+                search_results = self.indexer.search_multi_collection(
+                    query=entity_name,
+                    collections=["databricks_collection"],
+                    top_k=10
+                )
+
+                if "databricks_collection" in search_results:
+                    for result in search_results["databricks_collection"]:
+                        metadata = result.get("metadata", {})
+                        content = result.get("content", "")
+                        file_name = metadata.get("file_name", "unknown")
+
+                        # Read actual file if available
+                        actual_content = self._read_actual_file_content(result)
+                        if actual_content:
+                            content = actual_content
+
+                        # Extract tables from content
+                        notebook_data = {
+                            "file_name": file_name,
+                            "content": content,
+                            "file_path": metadata.get("absolute_file_path", metadata.get("file_path", "")),
+                            "metadata": metadata
+                        }
+
+                        # Use AI to extract tables/columns if available
+                        if self.ai_analyzer and content:
+                            try:
+                                ai_analysis = self.ai_analyzer.analyze_with_context(
+                                    query="Extract all table names (input and output), column names, and transformation logic from this notebook. Return in JSON format with 'input_tables', 'output_tables', 'columns', 'transformations'.",
+                                    context=content[:5000]  # Limit context
+                                )
+                                analysis_text = ai_analysis.get('analysis', '{}')
+
+                                # Try to parse JSON from AI response
+                                import json
+                                import re
+                                json_match = re.search(r'\{.*\}', analysis_text, re.DOTALL)
+                                if json_match:
+                                    parsed_data = json.loads(json_match.group())
+                                    notebook_data['input_tables'] = parsed_data.get('input_tables', [])
+                                    notebook_data['output_tables'] = parsed_data.get('output_tables', [])
+                                    notebook_data['columns'] = parsed_data.get('columns', [])
+                                    notebook_data['transformations'] = parsed_data.get('transformations', [])
+
+                                    # Add to global lists
+                                    tables.extend(parsed_data.get('input_tables', []))
+                                    tables.extend(parsed_data.get('output_tables', []))
+                                    transformations.extend(parsed_data.get('transformations', []))
+                            except Exception as e:
+                                logger.debug(f"Could not get AI analysis for {file_name}: {e}")
+
+                        notebooks.append(notebook_data)
+
+                    logger.info(f"  ✓ Found {len(notebooks)} Databricks notebooks for {entity_name}")
+            except Exception as e:
+                logger.warning(f"Error searching for Databricks entity: {e}")
+
+        return {
+            "system": "databricks",
+            "entity_name": entity_name,
+            "entity_type": "notebook",
+            "notebooks": notebooks,
+            "scripts": notebooks,  # Alias for compatibility
+            "transformations": transformations,
+            "tables": list(set(tables)),  # Deduplicate
+            "metadata": {
+                "notebook_count": len(notebooks),
+                "table_count": len(set(tables))
+            }
+        }
+
+    def _parse_placeholder_entity(self, entity_name: str, file_path: Optional[str]) -> Dict[str, Any]:
+        """Parse Databricks notebook - OLD PLACEHOLDER"""
         # Placeholder - extend based on your Databricks parser
         return {
             "system": "databricks",
@@ -496,11 +679,15 @@ class SimilarityAgent:
                         match
                     )
 
+                    # Extract entity name from metadata - try file_name first, then title
+                    metadata = match.get("metadata", {})
+                    entity_name = metadata.get("file_name") or match.get("title", "unknown")
+
                     scored_matches.append({
-                        "entity_name": match.get("title", "unknown"),
+                        "entity_name": entity_name,
                         "similarity_score": similarity_score,
                         "content": match.get("content", ""),
-                        "metadata": match.get("metadata", {})
+                        "metadata": metadata
                     })
 
                 results[target_system] = sorted(
