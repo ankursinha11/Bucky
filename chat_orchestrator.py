@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from enum import Enum
 import time
 from datetime import datetime
+from pathlib import Path
 from loguru import logger
 
 from services.chat.query_classifier import QueryClassifier, QueryIntent
@@ -88,6 +89,41 @@ class ChatOrchestrator:
         self.lineage_agent = LineageAgent()  # Takes no parameters
 
         logger.info("ChatOrchestrator initialized with 5 specialized agents")
+
+    def _read_actual_file_content(self, result: Dict[str, Any]) -> Optional[str]:
+        """
+        Read actual file content from disk for deep analysis
+
+        Args:
+            result: Search result with metadata containing file path
+
+        Returns:
+            Full file content if accessible, None otherwise
+        """
+        if not isinstance(result, dict):
+            return None
+
+        metadata = result.get('metadata', {})
+
+        # Try absolute path first
+        file_path = metadata.get('absolute_file_path')
+        if not file_path:
+            file_path = metadata.get('file_path')
+
+        if not file_path:
+            return None
+
+        try:
+            file_obj = Path(file_path)
+            if file_obj.exists() and file_obj.is_file():
+                with open(file_obj, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read()
+                    logger.debug(f"✓ Read {len(content)} chars from {file_path}")
+                    return content
+        except Exception as e:
+            logger.warning(f"Could not read file {file_path}: {e}")
+
+        return None
 
     def process_query_stream(
         self,
@@ -216,41 +252,96 @@ class ChatOrchestrator:
                 data={"results_count": len(all_results), "collections": len(search_results)}
             )
 
-            # Task 2: Extract context
+            # Task 2: Read actual files and extract deep context
             yield StreamUpdate(
                 type=UpdateType.TASK_START,
-                content="Task 2/3: Extracting relevant context..."
+                content="Task 2/3: Reading actual script files for deep analysis..."
             )
 
             context_chunks = []
+            source_files = []
+            files_read = 0
+
             for result in all_results[:5]:  # Limit to top 5 overall
                 if isinstance(result, dict):
-                    content = result.get('content', '')
-                    if content:
-                        context_chunks.append(content)
+                    # Try to read actual file first
+                    actual_content = self._read_actual_file_content(result)
+
+                    if actual_content:
+                        # Use full file content
+                        context_chunks.append(actual_content)
+                        files_read += 1
+
+                        # Track source file name
+                        metadata = result.get('metadata', {})
+                        file_name = metadata.get('file_name', metadata.get('file_path', 'Unknown'))
+                        source_files.append({
+                            'source': file_name,
+                            'file_path': metadata.get('absolute_file_path', metadata.get('file_path', '')),
+                            'system': metadata.get('system', 'Unknown')
+                        })
+
+                        yield StreamUpdate(
+                            type=UpdateType.TASK_PROGRESS,
+                            content=f"Read actual file: {file_name}"
+                        )
+                    else:
+                        # Fallback to indexed content
+                        content = result.get('content', '')
+                        if content:
+                            context_chunks.append(content)
+
+                            # Track source
+                            metadata = result.get('metadata', {})
+                            file_name = metadata.get('file_name', metadata.get('file_path', 'Unknown'))
+                            source_files.append({
+                                'source': file_name,
+                                'file_path': metadata.get('file_path', ''),
+                                'system': metadata.get('system', 'Unknown')
+                            })
 
             yield StreamUpdate(
                 type=UpdateType.TASK_COMPLETE,
-                content=f"Extracted {len(context_chunks)} context chunks"
+                content=f"Read {files_read} actual files, extracted {len(context_chunks)} total sources"
             )
 
-            # Task 3: Generate answer
+            # Task 3: Generate answer using AI with full file content
             yield StreamUpdate(
                 type=UpdateType.TASK_START,
-                content="Task 3/3: Generating answer using AI..."
+                content="Task 3/3: Generating AI-powered answer with deep analysis..."
             )
 
-            # Build context for AI
-            context_text = "\n\n".join(context_chunks[:5])
+            # Build context for AI - use full file content
+            context_text = "\n\n---FILE SEPARATOR---\n\n".join(context_chunks[:5])
 
-            prompt = f"""Based on the following codebase context, answer the user's question.
-
-Context:
-{context_text}
+            # Enhanced prompt for deep analysis
+            prompt = f"""You are analyzing actual script files from a data engineering codebase.
 
 User Question: {query}
 
-Provide a clear, concise answer based on the context provided."""
+I'm providing you with the FULL CONTENT of {len(context_chunks)} relevant script files.
+Analyze them thoroughly and provide a detailed, accurate answer.
+
+For each script:
+- Explain what it does (business purpose)
+- List inputs (tables, files, data sources)
+- List outputs (target tables, files)
+- Describe key transformations
+- Identify business logic and validation rules
+
+If the script references other files (like imports, shell scripts, etc.), mention them specifically.
+
+IMPORTANT: Be specific and accurate. Don't use words like "might be" or "possibly" - read the actual code and tell exactly what it does.
+
+Script Content:
+{context_text}
+
+Provide a comprehensive answer based on the actual code:"""
+
+            yield StreamUpdate(
+                type=UpdateType.TASK_PROGRESS,
+                content=f"Sending {len(context_text)} characters to AI for analysis..."
+            )
 
             answer = self.ai_analyzer.analyze_with_context(
                 query=prompt,
@@ -259,16 +350,17 @@ Provide a clear, concise answer based on the context provided."""
 
             yield StreamUpdate(
                 type=UpdateType.TASK_COMPLETE,
-                content="Answer generated"
+                content="AI analysis completed"
             )
 
-            # Final answer
+            # Final answer with proper sources
             yield StreamUpdate(
                 type=UpdateType.FINAL_ANSWER,
                 content=answer.get('analysis', answer.get('response', 'No answer generated')),
                 data={
-                    "sources": [r.metadata if hasattr(r, 'metadata') else {} for r in search_results],
-                    "context_chunks": len(context_chunks)
+                    "sources": source_files,
+                    "context_chunks": len(context_chunks),
+                    "files_read_from_disk": files_read
                 }
             )
 
@@ -328,10 +420,24 @@ Provide a clear, concise answer based on the context provided."""
 
                 if all_results:
                     first_result = all_results[0]
+
+                    # Try to read actual file for complete context
+                    actual_content = self._read_actual_file_content(first_result)
+
+                    if actual_content:
+                        context_content = actual_content
+                        yield StreamUpdate(
+                            type=UpdateType.AGENT_PROGRESS,
+                            content=f"Read actual file for {system}"
+                        )
+                    else:
+                        context_content = first_result.get('content', '') if isinstance(first_result, dict) else str(first_result)
+
                     parsed_entities[system] = {
                         'system': system,
                         'entities': entities,
-                        'context': first_result.get('content', '') if isinstance(first_result, dict) else str(first_result)
+                        'context': context_content,
+                        'metadata': first_result.get('metadata', {}) if isinstance(first_result, dict) else {}
                     }
 
                     yield StreamUpdate(
@@ -695,18 +801,39 @@ Found **{len(sttm_mappings)} field mappings**
             top_k=3
         )
 
-        # Flatten results and extract code
+        # Read actual files for complete code analysis
         code_snippets = []
+        source_files = []
+        files_read = 0
+
         for _, docs in search_results.items():
             for result in docs:
                 if isinstance(result, dict):
-                    code = result.get('content', '')
-                    if code:
-                        code_snippets.append(code)
+                    # Try to read actual file first
+                    actual_content = self._read_actual_file_content(result)
+
+                    if actual_content:
+                        code_snippets.append(actual_content)
+                        files_read += 1
+
+                        # Track source
+                        metadata = result.get('metadata', {})
+                        file_name = metadata.get('file_name', metadata.get('file_path', 'Unknown'))
+                        source_files.append(file_name)
+
+                        yield StreamUpdate(
+                            type=UpdateType.TASK_PROGRESS,
+                            content=f"Read actual file: {file_name}"
+                        )
+                    else:
+                        # Fallback to indexed content
+                        code = result.get('content', '')
+                        if code:
+                            code_snippets.append(code)
 
         yield StreamUpdate(
             type=UpdateType.TASK_COMPLETE,
-            content=f"Retrieved {len(code_snippets)} code snippets"
+            content=f"Read {files_read} actual files, retrieved {len(code_snippets)} total code snippets"
         )
 
         # Task 2: Extract transformation logic
