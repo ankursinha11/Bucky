@@ -78,6 +78,20 @@ def render_entity_selection():
     """Render entity selection interface"""
     st.markdown("### 📋 Step 1: Select Entity to Analyze")
 
+    # Add explanation box
+    st.info("""
+    **What is an Entity?**
+
+    An entity is a **workflow, pipeline, graph, or notebook name** - NOT a column or table name.
+
+    Examples:
+    - **Hadoop**: `bdf_download`, `customer_pipeline`, `daily_load`
+    - **Databricks**: `customer_etl`, `bdf_download`, `data_pipeline`
+    - **Ab Initio**: `customer_load.graph`, `100_commGenPrePrep`
+
+    ℹ️ The system will find all scripts/files related to this workflow and extract column-level lineage (like "SSN") from them.
+    """)
+
     col1, col2 = st.columns(2)
 
     with col1:
@@ -97,12 +111,18 @@ def render_entity_selection():
         internal_system = system_map[system_type]
 
     with col2:
-        # Entity name input
+        # Entity name input with system-specific placeholder
+        placeholders = {
+            "Ab Initio": "100_commGenPrePrep or customer_load",
+            "Hadoop": "bdf_download or customer_pipeline",
+            "Databricks": "bdf_download or customer_etl"
+        }
+
         entity_name = st.text_input(
-            f"{system_type} Entity Name",
-            placeholder=f"e.g., customer_load.graph",
+            f"{system_type} Workflow/Pipeline Name",
+            placeholder=f"e.g., {placeholders[system_type]}",
             key="lineage_entity_name",
-            help=f"Enter the name of the graph/workflow/notebook to analyze"
+            help=f"Enter the workflow/pipeline/graph name (NOT a column or table name)"
         )
 
     # Optional: File path for parsing
@@ -563,13 +583,30 @@ def render_export_options(result):
     st.markdown("**Preview JSON Structure:**")
 
     with st.expander("View JSON Preview"):
-        # Fix: Truncate string before parsing, not after
+        # Fix: Parse JSON first, then display
         json_str = result.to_json()
-        if len(json_str) > 2000:
-            st.text("JSON truncated to first 2000 characters...")
-            st.json(json.loads(json_str[:2000] + '"}'))
-        else:
-            st.json(json.loads(json_str))
+        try:
+            json_data = json.loads(json_str)
+
+            # Create a preview version with limited data
+            if len(json_str) > 5000:
+                preview_data = {
+                    "selected_system": json_data.get("selected_system"),
+                    "selected_entity": json_data.get("selected_entity"),
+                    "sttm_mappings_count": len(json_data.get("sttm_mappings", [])),
+                    "matched_systems_count": len(json_data.get("matched_systems", {})),
+                    "column_lineage_count": len(json_data.get("column_lineage", [])),
+                    "confidence_score": json_data.get("confidence_score"),
+                    "sample_sttm_mapping": json_data.get("sttm_mappings", [{}])[0] if json_data.get("sttm_mappings") else {},
+                    "note": "Full JSON is too large. Download to see all data."
+                }
+                st.json(preview_data)
+            else:
+                st.json(json_data)
+        except json.JSONDecodeError as e:
+            st.error(f"Invalid JSON format: {e}")
+            st.text("Raw JSON (first 2000 chars):")
+            st.code(json_str[:2000], language="json")
 
 
 # Helper functions
