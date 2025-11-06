@@ -1,4 +1,11 @@
 """
+ACCESS_KEY = "AKIAVLPGDWCZ7UROORHQ"
+SECRET_ACCESS_KEY = "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"
+AWS_REGION = "us-east-1"
+
+
+
+
 AIzaSyCrEQI239571UCeEkOOV6NASrEdWB2BB-E
 Local Vector Search Client
 FREE alternative to Azure AI Search using ChromaDB and sentence-transformers
