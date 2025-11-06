@@ -1,5 +1,5 @@
 """
-AIzaSyDaqFj9wL0zSQEwiZTMfjWKl1TFtrE8BGw
+AIzaSyBoSq-8YOIsviDnUw4uj4YDAMEwYUA8KQU
 Local Vector Search Client
 FREE alternative to Azure AI Search using ChromaDB and sentence-transformers
 
