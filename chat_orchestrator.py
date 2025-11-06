@@ -26,6 +26,7 @@ from services.lineage.lineage_agents import (
     ParsingAgent, LogicAgent, MappingAgent,
     SimilarityAgent, LineageAgent
 )
+from services.logic_comparator import LogicComparator
 
 
 class UpdateType(Enum):
@@ -81,14 +82,17 @@ class ChatOrchestrator:
         # Initialize query classifier
         self.classifier = QueryClassifier(ai_analyzer=ai_analyzer)
 
+        # Initialize logic comparator for detailed cross-system comparison
+        self.logic_comparator = LogicComparator()
+
         # Initialize specialized agents with correct parameters
         self.parsing_agent = ParsingAgent(indexer=indexer, ai_analyzer=ai_analyzer)
         self.logic_agent = LogicAgent(ai_analyzer=ai_analyzer)
         self.mapping_agent = MappingAgent()  # Takes sttm_generator, defaults to creating one
-        self.similarity_agent = SimilarityAgent(indexer=indexer)  # Takes indexer and logic_comparator
+        self.similarity_agent = SimilarityAgent(indexer=indexer, logic_comparator=self.logic_comparator)
         self.lineage_agent = LineageAgent()  # Takes no parameters
 
-        logger.info("ChatOrchestrator initialized with 5 specialized agents")
+        logger.info("ChatOrchestrator initialized with 5 specialized agents + LogicComparator")
 
     def _read_actual_file_content(self, result: Dict[str, Any]) -> Optional[str]:
         """
@@ -529,51 +533,71 @@ Provide a comprehensive answer based on the actual code:"""
             content=f"SimilarityAgent completed: {len(similarity_scores)} comparisons"
         )
 
-        # Task 4: Generate comparison report
+        # Task 4: Generate detailed comparison using LogicComparator
         yield StreamUpdate(
             type=UpdateType.TASK_START,
-            content="Task 4/5: Generating comparison report..."
+            content="Task 4/5: Performing deep logic comparison with AI..."
         )
 
-        comparison_summary = self._build_comparison_summary(
-            systems, parsed_entities, logic_analysis, similarity_scores
-        )
+        # Use LogicComparator for detailed field-level analysis
+        detailed_comparisons = {}
+        if len(systems) >= 2 and self.logic_comparator.enabled:
+            system_pairs = [(systems[i], systems[j]) for i in range(len(systems)) for j in range(i+1, len(systems))]
+
+            for sys1, sys2 in system_pairs:
+                try:
+                    # Prepare data for LogicComparator
+                    system1_data = {
+                        'system_name': sys1,
+                        'name': parsed_entities.get(sys1, {}).get('entities', [''])[0],
+                        'description': logic_analysis.get(sys1, {}).get('business_purpose', 'N/A'),
+                        'code': parsed_entities.get(sys1, {}).get('context', '')
+                    }
+
+                    system2_data = {
+                        'system_name': sys2,
+                        'name': parsed_entities.get(sys2, {}).get('entities', [''])[0],
+                        'description': logic_analysis.get(sys2, {}).get('business_purpose', 'N/A'),
+                        'code': parsed_entities.get(sys2, {}).get('context', '')
+                    }
+
+                    # Perform detailed comparison
+                    comparison_result = self.logic_comparator.compare_logic(
+                        system1=system1_data,
+                        system2=system2_data,
+                        context=f"Post-migration validation comparing {sys1} to {sys2}"
+                    )
+
+                    detailed_comparisons[f"{sys1}_vs_{sys2}"] = comparison_result
+
+                    yield StreamUpdate(
+                        type=UpdateType.AGENT_PROGRESS,
+                        content=f"Deep comparison {sys1} vs {sys2} completed"
+                    )
+                except Exception as e:
+                    logger.error(f"Error in detailed comparison {sys1} vs {sys2}: {e}")
 
         yield StreamUpdate(
             type=UpdateType.TASK_COMPLETE,
-            content="Comparison report generated"
+            content="Deep logic comparison completed"
         )
 
-        # Task 5: Final answer
+        # Task 5: Format detailed comparison report
         yield StreamUpdate(
             type=UpdateType.TASK_START,
-            content="Task 5/5: Formatting final answer..."
+            content="Task 5/5: Formatting comprehensive comparison report..."
         )
 
-        final_answer = f"""## Cross-System Comparison Results
-
-**Systems Compared:** {', '.join(systems)}
-
-{comparison_summary}
-
-### Key Findings:
-"""
-
-        for pair, score in similarity_scores.items():
-            final_answer += f"\n- {pair.replace('_vs_', ' vs ')}: {score:.0%} similar"
-
-        final_answer += "\n\n### Detailed Analysis:\n"
-        for system, analysis in logic_analysis.items():
-            final_answer += f"\n**{system.upper()}:**\n"
-            final_answer += f"- Business Purpose: {analysis.get('business_purpose', 'Unknown')}\n"
-            final_answer += f"- Complexity: {analysis.get('complexity_score', 'N/A')}\n"
+        final_answer = self._format_detailed_comparison(
+            systems, parsed_entities, logic_analysis, detailed_comparisons
+        )
 
         yield StreamUpdate(
             type=UpdateType.FINAL_ANSWER,
             content=final_answer,
             data={
                 "systems": systems,
-                "similarity_scores": similarity_scores,
+                "detailed_comparisons": detailed_comparisons,
                 "logic_analysis": logic_analysis
             }
         )
@@ -929,6 +953,219 @@ Found **{len(sttm_mappings)} field mappings**
 
         # Similar to simple RAG but with code-specific formatting
         yield from self._handle_simple_rag(query, classified, context)
+
+    def _format_detailed_comparison(
+        self,
+        systems: List[str],
+        parsed_entities: Dict,
+        logic_analysis: Dict,
+        detailed_comparisons: Dict
+    ) -> str:
+        """Format detailed comparison results with tables and analysis"""
+
+        if not detailed_comparisons:
+            # Fallback if LogicComparator not available
+            return self._format_basic_comparison(systems, logic_analysis)
+
+        answer = f"""## 🔍 Cross-System Comparison Analysis
+
+**Systems Compared:** {' vs '.join(systems)}
+
+---
+
+"""
+
+        # Process each comparison
+        for pair_name, comparison in detailed_comparisons.items():
+            sys1, sys2 = pair_name.split('_vs_')
+
+            # Overall Assessment
+            similarity = comparison.get('similarity_score', 0)
+            are_equivalent = comparison.get('are_equivalent', False)
+
+            answer += f"""### Overall Assessment
+
+| Metric | Value |
+|--------|-------|
+| **Similarity Score** | {similarity:.1%} |
+| **Are Equivalent** | {'✅ Yes' if are_equivalent else '❌ No'} |
+| **Confidence** | {comparison.get('overall_assessment', {}).get('confidence_in_equivalence', 'MEDIUM')} |
+| **Recommendation** | {comparison.get('overall_assessment', {}).get('recommendation', 'N/A')} |
+
+"""
+
+            # Business Logic Summary
+            if 'business_logic_summary' in comparison:
+                answer += f"""### 📊 Business Logic Summary
+
+{comparison['business_logic_summary']}
+
+"""
+
+            # Field-Level Analysis Table
+            if 'field_level_analysis' in comparison and comparison['field_level_analysis']:
+                answer += f"""### 🔬 Field-Level Analysis
+
+| Field Name | {sys1.upper()} Logic | {sys2.upper()} Logic | Equivalent | Potential Discrepancy |
+|------------|---------------------|---------------------|------------|----------------------|
+"""
+                for field in comparison['field_level_analysis'][:10]:  # Limit to 10 fields
+                    field_name = field.get('field_name', 'N/A')
+                    sys1_logic = field.get('system1_logic', 'N/A')[:50]  # Truncate long logic
+                    sys2_logic = field.get('system2_logic', 'N/A')[:50]
+                    equiv = '✅' if field.get('are_equivalent', False) else '❌'
+                    discrepancy = field.get('potential_discrepancy', 'None')[:60]
+
+                    answer += f"| {field_name} | `{sys1_logic}` | `{sys2_logic}` | {equiv} | {discrepancy} |\n"
+
+                answer += "\n"
+
+            # Business Rule Differences
+            if 'business_rule_differences' in comparison and comparison['business_rule_differences']:
+                answer += f"""### ⚠️ Business Rule Differences
+
+"""
+                for i, rule in enumerate(comparison['business_rule_differences'][:5], 1):
+                    answer += f"""**{i}. {rule.get('rule', 'Rule')}**
+- **{sys1.upper()}:** {rule.get('system1', 'N/A')}
+- **{sys2.upper()}:** {rule.get('system2', 'N/A')}
+- **Impact:** {rule.get('impact', 'Unknown')}
+- **Recommendation:** {rule.get('recommendation', 'Review')}
+
+"""
+
+            # Transformation Differences Table
+            if 'transformation_differences' in comparison and comparison['transformation_differences']:
+                answer += f"""### 🔄 Transformation Logic Comparison
+
+| Operation | {sys1.upper()} | {sys2.upper()} | Equivalent | Notes |
+|-----------|---------------|---------------|------------|-------|
+"""
+                for trans in comparison['transformation_differences'][:5]:
+                    operation = trans.get('operation', 'N/A')
+                    sys1_impl = trans.get('system1', 'N/A')[:40]
+                    sys2_impl = trans.get('system2', 'N/A')[:40]
+                    equiv = '✅' if trans.get('are_equivalent', False) else '❌'
+                    notes = trans.get('data_difference', trans.get('performance_note', 'N/A'))[:50]
+
+                    answer += f"| {operation} | `{sys1_impl}` | `{sys2_impl}` | {equiv} | {notes} |\n"
+
+                answer += "\n"
+
+            # Join Logic Comparison
+            if 'join_logic_comparison' in comparison and comparison['join_logic_comparison']:
+                answer += f"""### 🔗 Join Logic Comparison
+
+"""
+                for join in comparison['join_logic_comparison']:
+                    answer += f"""**{join.get('join_name', 'Join')}:**
+- **{sys1.upper()}:** `{join.get('system1', 'N/A')}`
+- **{sys2.upper()}:** `{join.get('system2', 'N/A')}`
+- **Impact:** {join.get('impact', 'Unknown')}
+- **Row Count Impact:** {join.get('row_count_impact', 'Unknown')}
+
+"""
+
+            # Critical Issues
+            if 'critical_issues' in comparison and comparison['critical_issues']:
+                answer += f"""### 🚨 Critical Issues Found
+
+"""
+                for i, issue in enumerate(comparison['critical_issues'][:5], 1):
+                    severity = issue.get('severity', 'MEDIUM')
+                    severity_emoji = '🔴' if severity == 'HIGH' else '🟡' if severity == 'MEDIUM' else '🟢'
+
+                    answer += f"""**{i}. {severity_emoji} {severity} - {issue.get('issue', 'Issue')}**
+- **{sys1.upper()} Behavior:** {issue.get('system1_behavior', 'N/A')}
+- **{sys2.upper()} Behavior:** {issue.get('system2_behavior', 'N/A')}
+- **Potential Data Loss:** {'⚠️ YES' if issue.get('potential_data_loss', False) else '✅ NO'}
+- **Affected Records:** {issue.get('affected_records', 'Unknown')}
+- **Validation Query:**
+  ```sql
+  {issue.get('validation_query', 'N/A')}
+  ```
+
+"""
+
+            # Data Quality Differences
+            if 'data_quality_differences' in comparison and comparison['data_quality_differences']:
+                answer += f"""### 🛡️ Data Quality Rule Differences
+
+| Aspect | {sys1.upper()} | {sys2.upper()} | Risk Level | Impact |
+|--------|---------------|---------------|------------|--------|
+"""
+                for dq in comparison['data_quality_differences'][:5]:
+                    aspect = dq.get('aspect', 'N/A')
+                    sys1_impl = dq.get('system1', 'N/A')[:40]
+                    sys2_impl = dq.get('system2', 'N/A')[:40]
+                    risk = dq.get('risk_level', 'MEDIUM')
+                    impact = dq.get('impact', 'Unknown')[:60]
+
+                    answer += f"| {aspect} | `{sys1_impl}` | `{sys2_impl}` | {risk} | {impact} |\n"
+
+                answer += "\n"
+
+            # Validation Queries
+            if 'validation_queries' in comparison and comparison['validation_queries']:
+                answer += f"""### 🔍 Validation Queries
+
+Use these queries to validate the comparison results:
+
+"""
+                for i, vq in enumerate(comparison['validation_queries'][:5], 1):
+                    answer += f"""**{i}. {vq.get('purpose', 'Validation')}**
+```sql
+{vq.get('query', 'N/A')}
+```
+
+"""
+
+            # Overall Assessment Details
+            if 'overall_assessment' in comparison:
+                assessment = comparison['overall_assessment']
+
+                if assessment.get('major_concerns'):
+                    answer += f"""### ⚠️ Major Concerns
+
+"""
+                    for concern in assessment['major_concerns'][:5]:
+                        answer += f"- {concern}\n"
+                    answer += "\n"
+
+                if assessment.get('testing_priority'):
+                    answer += f"""### ✅ Testing Priority
+
+"""
+                    for i, test in enumerate(assessment['testing_priority'][:5], 1):
+                        answer += f"{i}. {test}\n"
+                    answer += "\n"
+
+        return answer
+
+    def _format_basic_comparison(
+        self,
+        systems: List[str],
+        logic_analysis: Dict
+    ) -> str:
+        """Fallback basic comparison when LogicComparator not available"""
+
+        answer = f"""## Cross-System Comparison Results
+
+**Systems Compared:** {', '.join(systems)}
+
+⚠️ **Note:** Detailed AI-powered comparison unavailable. Enable Azure OpenAI for field-level analysis.
+
+### Basic Analysis:
+
+"""
+        for system, analysis in logic_analysis.items():
+            answer += f"""**{system.upper()}:**
+- Business Purpose: {analysis.get('business_purpose', 'Unknown')}
+- Complexity: {analysis.get('complexity_score', 'N/A')}
+
+"""
+
+        return answer
 
     def _build_comparison_summary(
         self,
