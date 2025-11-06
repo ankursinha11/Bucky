@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 import json
 import io
+import re
 
 # Core services
 from services.multi_collection_indexer import MultiCollectionIndexer
@@ -53,12 +54,51 @@ from ui.lineage_tab import render_lineage_tab
 # ============================================
 # Only these graphs will be indexed for Ab Initio
 FILTERED_ABINITIO_GRAPHS = [
-    # Add your 36 graph names here
-    # Example format:
-    # "graph_customer_load",
-    # "graph_order_process",
-    # "graph_payment_validation",
-    # ... (add all 36 graph names)
+    # Commercial Generation (11 graphs)
+    "100_commGenPrePrep",
+    "105_commGenPrePrep",
+    "400_commGenIpa",
+    "405_commGenPatcho",
+    "410_commGenPrePA",
+    "415_commGenResultGmrn",
+    "420_commGenFinal",
+    "430_commGenFinalCluster",
+    "435_commGenClusteringReport",
+    "500_commGenLoadFinalFile",
+    "505_GenLoadFinalFile",
+
+    # Medicare Leads Generation (6 graphs)
+    "120_mcarePrePrep",
+    "440_mCareGenIpa",
+    "445_mCareGenDsh",
+    "450_mCareGenHets",
+    "455_mCareGenHetsOnly",
+    "460_mCareGenFinal",
+
+    # CDD (13 graphs)
+    "1000_CDD_PrePrep",
+    "1100_CDD_Charlotte271Data",
+    "1200_CDD_Charlotte271FamilyData",
+    "1300_CDD_PatientAcctsXRefPermID",
+    "1400_CDD_Charlotte271MRNData",
+    "1500_CDD_TUSourcedFamilyMemberLink",
+    "1600_CDD_HFC_FamilyFoundCoverage",
+    "1700_CDD_HFC_RelatedMemberOPSourcedFC",
+    "1800_CDD_HFC_Charlotte271Data",
+    "2000_CDD_LoadStagingAndCallISP",
+    "2200_CDD_LoadHelperFoundCoveragesAndCallISP",
+    "2500_CDD_PropagateHFCForFamilyMembers",
+    "2800_CDD_LoadHelperFoundCoveragesAndCallISP_Propagation",
+
+    # GHIC (1 graph)
+    "439_LoadSnavGlobalMRNXHospInsuranceCodes",
+
+    # Data Ingestion (5 graphs - these are .plan files)
+    "200_extractDataFromSqlToAbi",
+    "210_compareDataInAbiToSql",
+    "265_fileTransferToHadoopServer",
+    "300_extractDataFromSqlToAbi_FasterETL",
+    "600_consolidateArchiveCleanUp",
 ]
 
 # Chat orchestration
@@ -1500,9 +1540,6 @@ def index_all_repository_files_with_ai(
     Returns:
         Dict with indexing statistics
     """
-    from pathlib import Path
-    import re
-
     repo_path = Path(repository_path)
 
     # Define file extensions by system type
