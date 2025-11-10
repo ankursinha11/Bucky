@@ -48,6 +48,8 @@ from services.lineage.sttm_generator import STTMGenerator
 
 # UI Components
 from ui.lineage_tab import render_lineage_tab
+from ui.system_mapping_tab import render_system_mapping_tab
+from ui.enhanced_lineage_tab import render_enhanced_lineage_tab
 
 # ============================================
 # AB INITIO FILTERED GRAPHS (36 graphs)
@@ -1540,7 +1542,12 @@ def index_all_repository_files_with_ai(
     Returns:
         Dict with indexing statistics
     """
-    repo_path = Path(repository_path)
+    # CRITICAL FIX: Use absolute paths to prevent Windows path issues and directory duplication
+    repo_path = Path(repository_path).resolve()
+
+    # Get absolute path to current working directory to create output directories
+    import os
+    current_dir = Path(os.getcwd()).resolve()
 
     # Define file extensions by system type
     file_extensions = {
@@ -1554,7 +1561,12 @@ def index_all_repository_files_with_ai(
     # Find all relevant files recursively
     all_files = []
     for ext in extensions:
-        all_files.extend(repo_path.rglob(f'*{ext}'))
+        try:
+            found_files = list(repo_path.rglob(f'*{ext}'))
+            all_files.extend(found_files)
+        except Exception as e:
+            logger.warning(f"Error finding files with extension {ext}: {e}")
+            continue
 
     # Apply file filter if provided (for Ab Initio graph filtering)
     if file_filter:
@@ -1577,12 +1589,31 @@ def index_all_repository_files_with_ai(
     sttm_mappings = []
     file_references = {}  # Track which files reference which other files
 
-    # Create output directories
-    output_base = Path("./outputs/ai_enriched_docs") / system_type
-    output_base.mkdir(parents=True, exist_ok=True)
+    # CRITICAL FIX: Create output directories using absolute paths
+    output_base = (current_dir / "outputs" / "ai_enriched_docs" / system_type).resolve()
+    sttm_output = (current_dir / "outputs" / "sttm_mappings" / system_type).resolve()
 
-    sttm_output = Path("./outputs/sttm_mappings") / system_type
-    sttm_output.mkdir(parents=True, exist_ok=True)
+    # SAFETY CHECK: Verify paths are within expected directories
+    if not str(output_base).startswith(str(current_dir)):
+        raise ValueError(f"Security error: Output path {output_base} is outside working directory {current_dir}")
+    if not str(sttm_output).startswith(str(current_dir)):
+        raise ValueError(f"Security error: STTM path {sttm_output} is outside working directory {current_dir}")
+
+    # SAFETY CHECK: Verify paths aren't too long for Windows (MAX_PATH = 260)
+    if len(str(output_base)) > 240:
+        logger.warning(f"Output path length {len(str(output_base))} may exceed Windows limits")
+    if len(str(sttm_output)) > 240:
+        logger.warning(f"STTM path length {len(str(sttm_output))} may exceed Windows limits")
+
+    try:
+        output_base.mkdir(parents=True, exist_ok=True)
+        sttm_output.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        logger.error(f"Failed to create output directories: {e}", exc_info=True)
+        raise
+
+    logger.info(f"Output directory: {output_base}")
+    logger.info(f"STTM directory: {sttm_output}")
 
     # Log what we're starting with
     logger.info(f"AI Analyzer enabled: {ai_analyzer.enabled if ai_analyzer else 'None'}")
@@ -1599,11 +1630,13 @@ def index_all_repository_files_with_ai(
                 status_text.text(f"🤖 AI analyzing {idx+1}/{total_files}: {relative_path}")
 
             # Read file content
+            # CRITICAL FIX: Convert Path to string and use resolve() to get absolute path
             try:
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                abs_file_path = file_path.resolve()
+                with open(str(abs_file_path), 'r', encoding='utf-8', errors='ignore') as f:
                     content = f.read()
             except Exception as e:
-                logger.warning(f"Could not read {file_path}: {e}")
+                logger.warning(f"Could not read {abs_file_path}: {e}")
                 continue
 
             # Skip empty files
@@ -1692,9 +1725,22 @@ Content (first 8000 chars):
             logger.debug(f"✓ Created document for {file_path.name} (total: {len(documents)})")
 
             # Save document to disk
-            doc_file = output_base / f"{file_path.stem}_{hash(str(file_path)) % 10000}.json"
-            with open(doc_file, 'w', encoding='utf-8') as f:
-                json.dump(document, f, indent=2, default=str)
+            # CRITICAL FIX: Resolve path to absolute and convert to string
+            # SAFETY: Truncate long filenames to prevent Windows path length issues
+            safe_filename = file_path.stem[:100] if len(file_path.stem) > 100 else file_path.stem
+            doc_file = (output_base / f"{safe_filename}_{hash(str(file_path)) % 10000}.json").resolve()
+
+            # SAFETY CHECK: Verify the file path length
+            if len(str(doc_file)) > 250:
+                logger.warning(f"File path too long ({len(str(doc_file))} chars), using shorter name")
+                doc_file = (output_base / f"{hash(str(file_path)) % 100000}.json").resolve()
+
+            try:
+                with open(str(doc_file), 'w', encoding='utf-8') as f:
+                    json.dump(document, f, indent=2, default=str)
+            except Exception as e:
+                logger.error(f"Failed to write document file {doc_file}: {e}")
+                continue
 
             # Generate STTM mappings if possible
             if sttm_generator:
@@ -1719,19 +1765,33 @@ Content (first 8000 chars):
 
     # Save STTM mappings
     if sttm_mappings:
-        sttm_file = sttm_output / f"sttm_mappings_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        sttm_generator.export_to_json(sttm_mappings, str(sttm_file))
+        # CRITICAL FIX: Resolve paths to absolute and convert to string
+        sttm_file = (sttm_output / f"sttm_mappings_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json").resolve()
+        try:
+            sttm_generator.export_to_json(sttm_mappings, str(sttm_file))
+            logger.info(f"Successfully saved STTM JSON to {sttm_file}")
+        except Exception as e:
+            logger.error(f"Failed to save STTM JSON to {sttm_file}: {e}", exc_info=True)
 
-        sttm_excel = sttm_output / f"sttm_mappings_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-        sttm_generator.export_to_excel(sttm_mappings, str(sttm_excel))
+        sttm_excel = (sttm_output / f"sttm_mappings_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx").resolve()
+        try:
+            sttm_generator.export_to_excel(sttm_mappings, str(sttm_excel))
+            logger.info(f"Successfully saved STTM Excel to {sttm_excel}")
+        except Exception as e:
+            logger.error(f"Failed to save STTM Excel to {sttm_excel}: {e}", exc_info=True)
 
         if status_text:
             status_text.text(f"✓ Generated {len(sttm_mappings)} STTM mappings")
 
     # Save file references map
-    references_file = output_base / "file_references_map.json"
-    with open(references_file, 'w', encoding='utf-8') as f:
-        json.dump(file_references, f, indent=2)
+    # CRITICAL FIX: Resolve path to absolute and convert to string
+    references_file = (output_base / "file_references_map.json").resolve()
+    try:
+        with open(str(references_file), 'w', encoding='utf-8') as f:
+            json.dump(file_references, f, indent=2)
+        logger.info(f"Successfully saved file references map to {references_file}")
+    except Exception as e:
+        logger.error(f"Failed to write file references map to {references_file}: {e}", exc_info=True)
 
     return {
         "total_files": total_files,
@@ -2228,7 +2288,15 @@ def main():
     render_sidebar()
 
     # Main tabs
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["💬 Chat", "🔄 Compare", "📊 Analytics", "⚙️ Database", "🔗 Lineage"])
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+        "💬 Chat",
+        "🔄 Compare",
+        "📊 Analytics",
+        "⚙️ Database",
+        "🔗 Lineage (Legacy)",
+        "🧩 System Mapping",
+        "🔍 Lineage Tracking"
+    ])
 
     with tab1:
         render_chat_interface()
@@ -2244,6 +2312,12 @@ def main():
 
     with tab5:
         render_lineage_tab()
+
+    with tab6:
+        render_system_mapping_tab()
+
+    with tab7:
+        render_enhanced_lineage_tab()
 
 
 def render_analytics_dashboard():
