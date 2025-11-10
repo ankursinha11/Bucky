@@ -153,7 +153,7 @@ class LocalSearchClient:
 
             # Generate embeddings in batches to prevent memory overflow
             logger.info("Generating embeddings...")
-            BATCH_SIZE = 50  # Process 50 documents at a time
+            BATCH_SIZE = 10  # Process 10 documents at a time (reduced for low-memory environments)
 
             if len(texts) <= BATCH_SIZE:
                 # Small batch - process all at once
@@ -168,22 +168,52 @@ class LocalSearchClient:
             else:
                 # Large batch - process in chunks
                 logger.info(f"Processing {len(texts)} documents in batches of {BATCH_SIZE}...")
-                for i in range(0, len(texts), BATCH_SIZE):
-                    batch_end = min(i + BATCH_SIZE, len(texts))
+
+                current_batch_size = BATCH_SIZE
+                i = 0
+
+                while i < len(texts):
+                    batch_end = min(i + current_batch_size, len(texts))
                     batch_texts = texts[i:batch_end]
                     batch_ids = ids[i:batch_end]
                     batch_metadatas = metadatas[i:batch_end]
 
-                    logger.info(f"  Batch {i//BATCH_SIZE + 1}/{(len(texts) + BATCH_SIZE - 1)//BATCH_SIZE}: Documents {i+1}-{batch_end}")
+                    batch_num = i // current_batch_size + 1
+                    total_batches = (len(texts) + current_batch_size - 1) // current_batch_size
+                    logger.info(f"  Batch {batch_num}/{total_batches}: Documents {i+1}-{batch_end} (batch size: {current_batch_size})")
 
-                    batch_embeddings = self.embedding_model.encode(batch_texts, show_progress_bar=True)
+                    try:
+                        batch_embeddings = self.embedding_model.encode(batch_texts, show_progress_bar=True)
 
-                    self.collection.upsert(
-                        ids=batch_ids,
-                        embeddings=batch_embeddings.tolist(),
-                        documents=batch_texts,
-                        metadatas=batch_metadatas,
-                    )
+                        self.collection.upsert(
+                            ids=batch_ids,
+                            embeddings=batch_embeddings.tolist(),
+                            documents=batch_texts,
+                            metadatas=batch_metadatas,
+                        )
+
+                        # Success - move to next batch
+                        i = batch_end
+
+                    except Exception as batch_error:
+                        error_msg = str(batch_error).lower()
+
+                        # Check if it's a memory error
+                        if 'memory' in error_msg or 'allocation' in error_msg:
+                            # Reduce batch size and retry
+                            if current_batch_size > 1:
+                                current_batch_size = max(1, current_batch_size // 2)
+                                logger.warning(f"  ⚠️ Memory error - reducing batch size to {current_batch_size} and retrying...")
+                                # Don't increment i - retry with smaller batch
+                            else:
+                                # Can't reduce further - this document is too large
+                                logger.error(f"  ❌ Cannot process document {i+1} even with batch_size=1: {batch_error}")
+                                logger.error(f"  Document size: {len(batch_texts[0])} chars")
+                                # Skip this document
+                                i += 1
+                        else:
+                            # Non-memory error - raise it
+                            raise batch_error
 
             logger.info(f"✓ Indexed {len(ids)} documents successfully (upserted)")
 
