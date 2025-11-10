@@ -243,26 +243,29 @@ def analyze_source_entity_logic(
     )
 
     if f"{source_system}_collection" not in search_results:
-        logger.warning(f"No results found for {entity_name}")
+        logger.warning(f"❌ No results found for {entity_name} in {source_system}_collection")
         return None
 
     results = search_results[f"{source_system}_collection"]
+    logger.info(f"  📊 Found {len(results)} search results for '{entity_name}'")
 
     # Step 2: Find workflow.xml or main entity
     workflow_file = None
     entity_folder = None
     all_files_in_entity = []
 
-    for result in results:
+    for idx, result in enumerate(results):
         metadata = result.get('metadata', {})
         file_path = metadata.get('absolute_file_path', '')
         file_name = metadata.get('file_name', '')
+
+        logger.debug(f"  Result {idx+1}: {file_name} (path: {file_path})")
 
         # Check if this is a workflow.xml
         if 'workflow.xml' in file_name.lower() and entity_name.lower() in file_path.lower():
             workflow_file = file_path
             entity_folder = str(Path(file_path).parent)
-            logger.info(f"✓ Found workflow: {workflow_file}")
+            logger.info(f"  ✓ Found workflow: {workflow_file}")
 
         # Collect all files related to entity
         if entity_name.lower() in file_path.lower():
@@ -272,6 +275,9 @@ def analyze_source_entity_logic(
                 'content': result.get('content', ''),
                 'metadata': metadata
             })
+            logger.debug(f"  ✓ Matched entity file: {file_name}")
+
+    logger.info(f"  📂 Total files matching entity name: {len(all_files_in_entity)}")
 
     # Step 3: Parse workflow if found
     workflow_logic = {
@@ -288,12 +294,18 @@ def analyze_source_entity_logic(
 
     if workflow_file and Path(workflow_file).exists():
         # Parse Oozie workflow
+        logger.info(f"  🔧 Parsing Oozie workflow: {workflow_file}")
         workflow_logic = parse_oozie_workflow_deep(workflow_file, entity_folder)
+        logger.info(f"  ✓ Workflow parsed: {len(workflow_logic.get('scripts', []))} scripts found")
     elif all_files_in_entity:
         # Analyze as standalone script/folder
+        logger.info(f"  🔧 Analyzing standalone entity with {len(all_files_in_entity)} files")
         workflow_logic = analyze_standalone_entity(entity_name, all_files_in_entity, source_system)
+        logger.info(f"  ✓ Standalone analysis complete: {len(workflow_logic.get('scripts', []))} scripts found")
     else:
-        logger.warning(f"No workflow or files found for: {entity_name}")
+        logger.warning(f"❌ No workflow or files found for: {entity_name}")
+        logger.warning(f"  - Workflow file: {workflow_file}")
+        logger.warning(f"  - Files in entity: {len(all_files_in_entity)}")
         return None
 
     # Step 4: Read and analyze all scripts in workflow
@@ -426,6 +438,8 @@ def analyze_standalone_entity(entity_name: str, files: List[Dict], source_system
         'data_flow': []
     }
 
+    logger.info(f"  Checking {len(files)} files for scripts...")
+
     for file_info in files:
         file_path = file_info['path']
         file_name = file_info['name']
@@ -448,6 +462,11 @@ def analyze_standalone_entity(entity_name: str, files: List[Dict], source_system
                 'path': file_path,
                 'name': file_name
             })
+            logger.info(f"    ✓ Added {script_type} script: {file_name}")
+        else:
+            logger.debug(f"    ⊘ Skipped (not a script): {file_name}")
+
+    logger.info(f"  ✓ Identified {len(workflow_logic['scripts'])} scripts from {len(files)} files")
 
     return workflow_logic
 
@@ -769,29 +788,58 @@ def search_by_entity_name(
     )
 
     if f"{target_system}_collection" not in results:
+        logger.warning(f"    ❌ No collection results for {target_system}_collection")
         return []
+
+    collection_results = results[f"{target_system}_collection"]
+    logger.info(f"    📊 Vector search returned {len(collection_results)} results")
 
     matches = []
 
-    for result in results[f"{target_system}_collection"]:
+    for idx, result in enumerate(collection_results):
         metadata = result.get('metadata', {})
         file_path = metadata.get('absolute_file_path', '')
         file_name = metadata.get('file_name', 'unknown')
 
-        # Check if entity name appears in path
-        if entity_name.lower() in file_path.lower():
+        logger.debug(f"    Result {idx+1}: {file_name}")
+
+        # AGGRESSIVE MATCHING: Accept if entity name in path OR filename OR top results
+        entity_lower = entity_name.lower()
+        path_lower = file_path.lower()
+        name_lower = file_name.lower()
+
+        match_reason = None
+        score = 0.5  # Default
+
+        if entity_lower in path_lower:
+            match_reason = f"Path contains '{entity_name}'"
+            score = 0.7
+        elif entity_lower in name_lower:
+            match_reason = f"Filename contains '{entity_name}'"
+            score = 0.6
+        elif any(part in name_lower for part in entity_lower.split('_')):
+            # Partial word match (e.g., "bdf" from "bdf_download")
+            match_reason = f"Partial match in filename"
+            score = 0.5
+        elif idx < 5:
+            # Top 5 results from vector search - include even without exact match
+            match_reason = f"Top vector search result (rank {idx+1})"
+            score = 0.4
+
+        if match_reason:
             match = {
                 'target_system': target_system,
                 'entity_name': file_name,
                 'file_path': file_path,
-                'similarity_score': 0.6,  # Moderate score for name match
-                'description': f"Name match: contains '{entity_name}'",
+                'similarity_score': score,
+                'description': match_reason,
                 'metadata': metadata,
                 'logic_breakdown': {}
             }
             matches.append(match)
+            logger.debug(f"      ✓ Matched: {match_reason}")
 
-    logger.info(f"    ✓ Found {len(matches)} name-based matches")
+    logger.info(f"    ✓ Found {len(matches)} name-based matches from {len(collection_results)} results")
 
     return matches
 
@@ -1070,12 +1118,36 @@ def search_target_system(
     """
     logger.info(f"🔍 Deep logic search: {entity_name} in {source_system} → {target_system}")
 
+    # DIAGNOSTIC: Check if collections are indexed
+    indexer = st.session_state.indexer
+    try:
+        # Try a simple test search to verify collection exists
+        test_search = indexer.search_multi_collection(
+            query="test",
+            collections=[f"{source_system}_collection", f"{target_system}_collection"],
+            top_k=1
+        )
+        logger.info(f"  📊 Collections available: {list(test_search.keys())}")
+        for collection_name, results in test_search.items():
+            logger.info(f"    - {collection_name}: {len(results)} docs (sample search)")
+    except Exception as e:
+        logger.error(f"  ❌ Error checking collections: {e}")
+
     # Step 1: Analyze source entity deeply
     source_logic = analyze_source_entity_logic(entity_name, source_system)
 
     if not source_logic:
-        logger.warning(f"Could not analyze source entity: {entity_name}")
-        return []
+        logger.warning(f"⚠️ Could not analyze source entity: {entity_name}")
+        logger.info(f"  💡 Fallback: Trying simple name-based search...")
+
+        # Fallback to simple name search
+        indexer = st.session_state.indexer
+        simple_matches = search_by_entity_name(
+            entity_name=entity_name,
+            target_system=target_system,
+            indexer=indexer
+        )
+        return simple_matches
 
     logger.info(f"📊 Source workflow profile: {source_logic['workflow_type']}, {len(source_logic['scripts'])} scripts, {len(source_logic['transformations'])} transformations")
 
@@ -1086,7 +1158,20 @@ def search_target_system(
         min_similarity=min_similarity
     )
 
-    logger.info(f"Found {len(matches)} logic-based matches in {target_system}")
+    logger.info(f"✓ Found {len(matches)} logic-based matches in {target_system}")
+
+    # Step 3: If no matches found, try simple name-based search as fallback
+    if len(matches) == 0:
+        logger.info(f"  💡 No logic matches found, trying simple name-based search...")
+        indexer = st.session_state.indexer
+        simple_matches = search_by_entity_name(
+            entity_name=entity_name,
+            target_system=target_system,
+            indexer=indexer
+        )
+        if simple_matches:
+            logger.info(f"  ✓ Found {len(simple_matches)} name-based matches")
+            matches.extend(simple_matches)
 
     return matches
 
