@@ -559,10 +559,10 @@ Provide a comprehensive answer based on the actual code:"""
             content=f"SimilarityAgent completed: {len(similarity_scores)} comparisons"
         )
 
-        # Task 4: Generate detailed comparison using LogicComparator
+        # Task 4: Generate detailed comparison using LogicComparator + Copilot
         yield StreamUpdate(
             type=UpdateType.TASK_START,
-            content="Task 4/5: Performing deep logic comparison with AI..."
+            content="Task 4/5: Performing deep logic comparison with AI (using Codebase Copilot for actual file reading)..."
         )
 
         # Use LogicComparator for detailed field-level analysis
@@ -572,33 +572,85 @@ Provide a comprehensive answer based on the actual code:"""
 
             for sys1, sys2 in system_pairs:
                 try:
-                    # Prepare data for LogicComparator
+                    # Use Codebase Copilot to retrieve actual file contents for deeper analysis
+                    entity_name1 = parsed_entities.get(sys1, {}).get('entities', [''])[0] if sys1 in parsed_entities else query
+                    entity_name2 = parsed_entities.get(sys2, {}).get('entities', [''])[0] if sys2 in parsed_entities else query
+
+                    yield StreamUpdate(
+                        type=UpdateType.AGENT_PROGRESS,
+                        content=f"🔍 Copilot reading actual {sys1} files..."
+                    )
+
+                    # Retrieve full context for system 1 using Copilot
+                    copilot_context1 = self.copilot.retrieve_context_for_query(
+                        query=entity_name1,
+                        systems=[sys1],
+                        context_type="comparison"
+                    )
+
+                    yield StreamUpdate(
+                        type=UpdateType.AGENT_PROGRESS,
+                        content=f"🔍 Copilot reading actual {sys2} files..."
+                    )
+
+                    # Retrieve full context for system 2 using Copilot
+                    copilot_context2 = self.copilot.retrieve_context_for_query(
+                        query=entity_name2,
+                        systems=[sys2],
+                        context_type="comparison"
+                    )
+
+                    # Build enriched code context from Copilot results
+                    sys1_code = parsed_entities.get(sys1, {}).get('context', '')
+                    sys2_code = parsed_entities.get(sys2, {}).get('context', '')
+
+                    # Enrich with actual file contents from Copilot
+                    if copilot_context1.snippets:
+                        sys1_code += "\n\n=== ACTUAL FILE CONTENTS (via Copilot) ===\n\n"
+                        for snippet in copilot_context1.snippets[:3]:  # Limit to 3 files to avoid token limits
+                            sys1_code += f"\n--- File: {snippet.get('file_name', 'N/A')} ---\n"
+                            sys1_code += snippet.get('content', '')[:3000]  # Limit each file to 3000 chars
+
+                    if copilot_context2.snippets:
+                        sys2_code += "\n\n=== ACTUAL FILE CONTENTS (via Copilot) ===\n\n"
+                        for snippet in copilot_context2.snippets[:3]:
+                            sys2_code += f"\n--- File: {snippet.get('file_name', 'N/A')} ---\n"
+                            sys2_code += snippet.get('content', '')[:3000]
+
+                    # Prepare data for LogicComparator with enriched content
                     system1_data = {
                         'system_name': sys1,
-                        'name': parsed_entities.get(sys1, {}).get('entities', [''])[0],
+                        'name': entity_name1,
                         'description': logic_analysis.get(sys1, {}).get('business_purpose', 'N/A'),
-                        'code': parsed_entities.get(sys1, {}).get('context', '')
+                        'code': sys1_code,
+                        'files_read': copilot_context1.files_read
                     }
 
                     system2_data = {
                         'system_name': sys2,
-                        'name': parsed_entities.get(sys2, {}).get('entities', [''])[0],
+                        'name': entity_name2,
                         'description': logic_analysis.get(sys2, {}).get('business_purpose', 'N/A'),
-                        'code': parsed_entities.get(sys2, {}).get('context', '')
+                        'code': sys2_code,
+                        'files_read': copilot_context2.files_read
                     }
+
+                    yield StreamUpdate(
+                        type=UpdateType.AGENT_PROGRESS,
+                        content=f"📊 Comparing {len(copilot_context1.files_read)} {sys1} files vs {len(copilot_context2.files_read)} {sys2} files..."
+                    )
 
                     # Perform detailed comparison
                     comparison_result = self.logic_comparator.compare_logic(
                         system1=system1_data,
                         system2=system2_data,
-                        context=f"Post-migration validation comparing {sys1} to {sys2}"
+                        context=f"Comparing {sys1} to {sys2} - analyzing actual source code files"
                     )
 
                     detailed_comparisons[f"{sys1}_vs_{sys2}"] = comparison_result
 
                     yield StreamUpdate(
                         type=UpdateType.AGENT_PROGRESS,
-                        content=f"Deep comparison {sys1} vs {sys2} completed"
+                        content=f"✅ Deep comparison {sys1} vs {sys2} completed (analyzed {len(copilot_context1.files_read) + len(copilot_context2.files_read)} actual files)"
                     )
                 except Exception as e:
                     logger.error(f"Error in detailed comparison {sys1} vs {sys2}: {e}")
@@ -1040,11 +1092,95 @@ Found **{len(sttm_mappings)} field mappings**
         for pair_name, comparison in detailed_comparisons.items():
             sys1, sys2 = pair_name.split('_vs_')
 
+            # Pipeline Process Flow Comparison (PRIORITY #1)
+            if 'pipeline_process_flow_comparison' in comparison:
+                flow_comp = comparison['pipeline_process_flow_comparison']
+
+                answer += f"""### 🔄 Pipeline Process Flow Comparison
+
+**Overall Flow Similarity:** {flow_comp.get('overall_flow_similarity', 'N/A')}
+
+{flow_comp.get('flow_summary', '')}
+
+"""
+
+                # Stage-by-Stage Comparison Table
+                if 'stage_by_stage_comparison' in flow_comp and flow_comp['stage_by_stage_comparison']:
+                    answer += f"""#### Stage-by-Stage Analysis
+
+| Stage | {sys1.upper()} | {sys2.upper()} | Similar | Differences | Impact |
+|-------|---------------|---------------|---------|-------------|--------|
+"""
+                    for stage in flow_comp['stage_by_stage_comparison']:
+                        stage_name = stage.get('stage', 'N/A')
+                        sys1_impl = stage.get('system1', 'N/A')[:60]
+                        sys2_impl = stage.get('system2', 'N/A')[:60]
+                        similar = '✅' if stage.get('are_similar', False) else '❌'
+                        differences = stage.get('differences', 'None')[:50]
+                        impact = stage.get('impact', 'None')[:40]
+
+                        answer += f"| {stage_name} | {sys1_impl} | {sys2_impl} | {similar} | {differences} | {impact} |\n"
+
+                    answer += "\n"
+
+                # Missing stages
+                if flow_comp.get('missing_stages_in_system1') or flow_comp.get('missing_stages_in_system2'):
+                    answer += "**⚠️ Missing Stages:**\n\n"
+                    if flow_comp.get('missing_stages_in_system1'):
+                        answer += f"- **Missing in {sys1.upper()}:** {', '.join(flow_comp['missing_stages_in_system1'])}\n"
+                    if flow_comp.get('missing_stages_in_system2'):
+                        answer += f"- **Missing in {sys2.upper()}:** {', '.join(flow_comp['missing_stages_in_system2'])}\n"
+                    answer += "\n"
+
+            # Data Sources and Targets Comparison (PRIORITY #2)
+            if 'data_sources_and_targets' in comparison:
+                data_comp = comparison['data_sources_and_targets']
+
+                answer += f"""### 📊 Data Sources and Targets Comparison
+
+"""
+
+                # Source Comparison
+                if 'source_comparison' in data_comp and data_comp['source_comparison']:
+                    answer += f"""#### Input Sources
+
+| Logical Source | {sys1.upper()} | {sys2.upper()} | Same Data | Notes |
+|----------------|---------------|---------------|-----------|-------|
+"""
+                    for source in data_comp['source_comparison']:
+                        logical = source.get('logical_source', 'N/A')
+                        sys1_src = source.get('system1', 'N/A')[:40]
+                        sys2_src = source.get('system2', 'N/A')[:40]
+                        same = '✅' if source.get('same_data', False) else '❌'
+                        notes = source.get('notes', 'N/A')[:50]
+
+                        answer += f"| {logical} | {sys1_src} | {sys2_src} | {same} | {notes} |\n"
+
+                    answer += "\n"
+
+                # Target Comparison
+                if 'target_comparison' in data_comp and data_comp['target_comparison']:
+                    answer += f"""#### Output Targets
+
+| Logical Target | {sys1.upper()} | {sys2.upper()} | Same Schema | Column Differences |
+|----------------|---------------|---------------|-------------|-------------------|
+"""
+                    for target in data_comp['target_comparison']:
+                        logical = target.get('logical_target', 'N/A')
+                        sys1_tgt = target.get('system1', 'N/A')[:40]
+                        sys2_tgt = target.get('system2', 'N/A')[:40]
+                        same_schema = '✅' if target.get('same_schema', False) else '❌'
+                        col_diffs = ', '.join(target.get('column_differences', ['None']))[:60]
+
+                        answer += f"| {logical} | {sys1_tgt} | {sys2_tgt} | {same_schema} | {col_diffs} |\n"
+
+                    answer += "\n"
+
             # Overall Assessment
             similarity = comparison.get('similarity_score', 0)
             are_equivalent = comparison.get('are_equivalent', False)
 
-            answer += f"""### Overall Assessment
+            answer += f"""### 📈 Overall Assessment
 
 | Metric | Value |
 |--------|-------|
@@ -1057,7 +1193,7 @@ Found **{len(sttm_mappings)} field mappings**
 
             # Business Logic Summary
             if 'business_logic_summary' in comparison:
-                answer += f"""### 📊 Business Logic Summary
+                answer += f"""### 🔍 Business Logic Details
 
 {comparison['business_logic_summary']}
 
@@ -1200,6 +1336,19 @@ Use these queries to validate the comparison results:
                     for i, test in enumerate(assessment['testing_priority'][:5], 1):
                         answer += f"{i}. {test}\n"
                     answer += "\n"
+
+            # Technology Comparison (LAST - kept brief as requested)
+            if 'technology_comparison' in comparison:
+                tech_comp = comparison['technology_comparison']
+
+                answer += f"""### 💻 Technology Stack Comparison
+
+**{sys1.upper()} Technology:** {tech_comp.get('system1_technology_stack', 'N/A')}
+**{sys2.upper()} Technology:** {tech_comp.get('system2_technology_stack', 'N/A')}
+
+**Technology Impact on Logic:** {tech_comp.get('technology_impact_on_logic', 'N/A')}
+
+"""
 
         return answer
 
