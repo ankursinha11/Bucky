@@ -27,6 +27,7 @@ from services.lineage.lineage_agents import (
     SimilarityAgent, LineageAgent
 )
 from services.logic_comparator import LogicComparator
+from services.codebase_copilot import CodebaseCopilot
 
 
 class UpdateType(Enum):
@@ -82,6 +83,9 @@ class ChatOrchestrator:
         # Initialize query classifier
         self.classifier = QueryClassifier(ai_analyzer=ai_analyzer)
 
+        # Initialize Codebase Copilot for dynamic file search
+        self.copilot = CodebaseCopilot(indexer=indexer, ai_analyzer=ai_analyzer)
+
         # Initialize logic comparator for detailed cross-system comparison
         self.logic_comparator = LogicComparator()
 
@@ -92,7 +96,7 @@ class ChatOrchestrator:
         self.similarity_agent = SimilarityAgent(indexer=indexer, logic_comparator=self.logic_comparator)
         self.lineage_agent = LineageAgent()  # Takes no parameters
 
-        logger.info("ChatOrchestrator initialized with 5 specialized agents + LogicComparator")
+        logger.info("ChatOrchestrator initialized with 5 specialized agents + LogicComparator + Codebase Copilot")
 
     def _read_actual_file_content(self, result: Dict[str, Any]) -> Optional[str]:
         """
@@ -230,14 +234,36 @@ class ChatOrchestrator:
         )
 
         try:
-            # Use indexer to search across all collections
-            collections = [
-                "abinitio_collection",
-                "hadoop_collection",
-                "databricks_collection",
-                "autosys_collection",
-                "documents_collection"
-            ]
+            # Use detected systems to filter collections
+            if classified.systems:
+                # Map system names to collection names
+                system_to_collection = {
+                    "abinitio": "abinitio_collection",
+                    "hadoop": "hadoop_collection",
+                    "databricks": "databricks_collection",
+                    "autosys": "autosys_collection",
+                    "documents": "documents_collection"
+                }
+                collections = [
+                    system_to_collection[sys.lower()]
+                    for sys in classified.systems
+                    if sys.lower() in system_to_collection
+                ]
+
+                # If no valid collections, default to all
+                if not collections:
+                    collections = list(system_to_collection.values())
+            else:
+                # No systems detected - search all collections
+                collections = [
+                    "abinitio_collection",
+                    "hadoop_collection",
+                    "databricks_collection",
+                    "autosys_collection",
+                    "documents_collection"
+                ]
+
+            logger.info(f"Searching collections: {collections}")
 
             search_results = self.indexer.search_multi_collection(
                 query=query,
@@ -624,15 +650,33 @@ Provide a comprehensive answer based on the actual code:"""
             content="Using **ParsingAgent** to extract entity structure..."
         )
 
-        # Search for entity across all collections
+        # Search for entity in detected systems
         search_query = ' '.join(entities[:3]) if entities else query
 
-        collections = [
-            "abinitio_collection",
-            "hadoop_collection",
-            "databricks_collection",
-            "autosys_collection"
-        ]
+        # Use detected systems to filter collections
+        if classified.systems:
+            system_to_collection = {
+                "abinitio": "abinitio_collection",
+                "hadoop": "hadoop_collection",
+                "databricks": "databricks_collection",
+                "autosys": "autosys_collection"
+            }
+            collections = [
+                system_to_collection[sys.lower()]
+                for sys in classified.systems
+                if sys.lower() in system_to_collection
+            ]
+            if not collections:
+                collections = list(system_to_collection.values())
+        else:
+            collections = [
+                "abinitio_collection",
+                "hadoop_collection",
+                "databricks_collection",
+                "autosys_collection"
+            ]
+
+        logger.info(f"Lineage search in collections: {collections}")
 
         search_results = self.indexer.search_multi_collection(
             query=search_query,
@@ -813,11 +857,28 @@ Found **{len(sttm_mappings)} field mappings**
 
         search_query = ' '.join(entities[:3]) if entities else query
 
-        collections = [
-            "abinitio_collection",
-            "hadoop_collection",
-            "databricks_collection"
-        ]
+        # Use detected systems to filter collections
+        if classified.systems:
+            system_to_collection = {
+                "abinitio": "abinitio_collection",
+                "hadoop": "hadoop_collection",
+                "databricks": "databricks_collection"
+            }
+            collections = [
+                system_to_collection[sys.lower()]
+                for sys in classified.systems
+                if sys.lower() in system_to_collection
+            ]
+            if not collections:
+                collections = list(system_to_collection.values())
+        else:
+            collections = [
+                "abinitio_collection",
+                "hadoop_collection",
+                "databricks_collection"
+            ]
+
+        logger.info(f"Logic analysis search in collections: {collections}")
 
         search_results = self.indexer.search_multi_collection(
             query=search_query,
