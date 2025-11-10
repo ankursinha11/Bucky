@@ -586,56 +586,134 @@ def search_by_logic_patterns(
     min_similarity: float
 ) -> List[Dict[str, Any]]:
     """
-    Search target system for entities with matching LOGIC patterns
+    Search target system for entities with matching LOGIC patterns using CHUNK-BASED approach
 
-    Instead of searching by name, we search by:
-    - Similar transformations (FILTER+JOIN+GROUP pattern)
-    - Similar table usage (same input/output patterns)
-    - Similar business logic
+    NEW APPROACH:
+    1. Break source workflow into chunks (per script)
+    2. Search for matches for EACH chunk separately
+    3. Aggregate all matches
+    4. Don't require matching the entire workflow - partial matches are good!
     """
-    logger.info(f"🎯 Searching {target_system} for logic patterns...")
+    logger.info(f"🎯 Searching {target_system} for logic patterns (chunk-based)...")
 
-    copilot = st.session_state.copilot
     indexer = st.session_state.indexer
 
-    # Build logic-based search queries
-    search_queries = []
+    # CHUNK 1: Search by individual scripts (if workflow)
+    all_matches = {}  # file_path -> match dict
 
-    # Query 1: Transformation pattern
-    transformations = source_logic.get('transformations', [])
-    if transformations:
-        trans_pattern = " ".join([str(t) for t in transformations[:5]])
-        search_queries.append(f"transformations: {trans_pattern}")
+    if source_logic.get('scripts'):
+        logger.info(f"  📦 Source has {len(source_logic['scripts'])} scripts - searching for each chunk")
 
-    # Query 2: Table names
-    input_tables = source_logic.get('input_tables', [])
-    output_tables = source_logic.get('output_tables', [])
-    if input_tables:
-        search_queries.append(" ".join(input_tables[:3]))
-    if output_tables:
-        search_queries.append(" ".join(output_tables[:3]))
+        for script_info in source_logic['scripts']:
+            script_logic = script_info.get('logic', {})
+            if not script_logic:
+                continue
 
-    # Query 3: Business logic keywords
-    business_logic = source_logic.get('business_logic', [])
-    if business_logic:
-        search_queries.append(" ".join(business_logic[:3]))
+            # Search for this specific script's logic
+            chunk_matches = search_for_chunk(
+                chunk_logic=script_logic,
+                chunk_name=script_info.get('name', 'unknown'),
+                target_system=target_system,
+                min_similarity=min_similarity * 0.7,  # Lower threshold for chunks
+                indexer=indexer
+            )
 
-    # Combine queries
-    combined_query = " ".join(search_queries)
+            # Merge matches
+            for match in chunk_matches:
+                file_path = match['file_path']
+                if file_path in all_matches:
+                    # Increase score if multiple chunks match same file
+                    all_matches[file_path]['similarity_score'] = max(
+                        all_matches[file_path]['similarity_score'],
+                        match['similarity_score']
+                    )
+                    all_matches[file_path]['matched_chunks'] = all_matches[file_path].get('matched_chunks', 1) + 1
+                else:
+                    match['matched_chunks'] = 1
+                    all_matches[file_path] = match
 
-    logger.info(f"  Search query: {combined_query[:200]}...")
+    # CHUNK 2: Also search by entity name (folder-level match)
+    entity_name = source_logic.get('entity_name', '')
+    if entity_name:
+        name_matches = search_by_entity_name(
+            entity_name=entity_name,
+            target_system=target_system,
+            indexer=indexer
+        )
 
-    # Search target system
+        for match in name_matches:
+            file_path = match['file_path']
+            if file_path not in all_matches:
+                all_matches[file_path] = match
+
+    # CHUNK 3: Search by overall workflow pattern (tables + transformations)
+    pattern_matches = search_by_overall_pattern(
+        source_logic=source_logic,
+        target_system=target_system,
+        min_similarity=min_similarity,
+        indexer=indexer
+    )
+
+    for match in pattern_matches:
+        file_path = match['file_path']
+        if file_path in all_matches:
+            # Boost score if both chunk AND pattern match
+            all_matches[file_path]['similarity_score'] = min(
+                (all_matches[file_path]['similarity_score'] + match['similarity_score']) / 2 * 1.2,
+                1.0
+            )
+        else:
+            all_matches[file_path] = match
+
+    # Convert to list and sort
+    matches = list(all_matches.values())
+    matches.sort(key=lambda x: x['similarity_score'], reverse=True)
+
+    logger.info(f"  ✓ Found {len(matches)} chunk-based matches (from {len(source_logic.get('scripts', []))} source chunks)")
+
+    return matches
+
+
+def search_for_chunk(
+    chunk_logic: Dict[str, Any],
+    chunk_name: str,
+    target_system: str,
+    min_similarity: float,
+    indexer
+) -> List[Dict[str, Any]]:
+    """Search for a single chunk/script logic in target system"""
+
+    # Build search query from chunk logic
+    search_parts = []
+
+    if chunk_logic.get('transformations'):
+        search_parts.append(" ".join(str(t) for t in chunk_logic['transformations'][:3]))
+
+    if chunk_logic.get('input_tables'):
+        # Extract just table names, not full paths
+        table_names = [Path(t).name for t in chunk_logic['input_tables'][:2]]
+        search_parts.append(" ".join(table_names))
+
+    if chunk_logic.get('business_logic'):
+        search_parts.append(" ".join(chunk_logic['business_logic'][:2]))
+
+    if not search_parts:
+        return []
+
+    search_query = " ".join(search_parts)
+    logger.info(f"    🔍 Searching for chunk '{chunk_name}': {search_query[:100]}...")
+
+    # Search
     results = indexer.search_multi_collection(
-        query=combined_query,
+        query=search_query,
         collections=[f"{target_system}_collection"],
-        top_k=30
+        top_k=20
     )
 
     if f"{target_system}_collection" not in results:
         return []
 
-    # Analyze each candidate for logic similarity
+    # Analyze candidates
     matches = []
 
     for result in results[f"{target_system}_collection"]:
@@ -643,23 +721,153 @@ def search_by_logic_patterns(
         file_path = metadata.get('absolute_file_path', '')
         file_name = metadata.get('file_name', 'unknown')
 
-        # Skip if can't read file
         if not file_path or not Path(file_path).exists():
             continue
 
-        # Analyze target script logic
+        # Analyze target
         target_logic = analyze_script_logic(file_path, target_system)
 
-        # Calculate logic similarity
-        logic_score = calculate_logic_similarity(source_logic, target_logic)
+        # Calculate similarity for this chunk (using AI if available)
+        ai_analyzer = st.session_state.get('ai_analyzer')
+        chunk_score = calculate_logic_similarity(chunk_logic, target_logic, ai_analyzer)
 
-        if logic_score >= min_similarity:
+        if chunk_score >= min_similarity:
             match = {
                 'target_system': target_system,
                 'entity_name': file_name,
                 'file_path': file_path,
-                'similarity_score': logic_score,
-                'description': f"Logic match: {', '.join(target_logic.get('transformations', [])[:3])}",
+                'similarity_score': chunk_score,
+                'description': f"Matches chunk '{chunk_name}': {', '.join(target_logic.get('transformations', [])[:3])}",
+                'metadata': metadata,
+                'matched_chunk': chunk_name,
+                'logic_breakdown': {
+                    'input_tables': target_logic.get('input_tables', []),
+                    'output_tables': target_logic.get('output_tables', []),
+                    'transformations': target_logic.get('transformations', [])
+                }
+            }
+            matches.append(match)
+
+    logger.info(f"      ✓ Chunk '{chunk_name}' matched {len(matches)} files")
+
+    return matches
+
+
+def search_by_entity_name(
+    entity_name: str,
+    target_system: str,
+    indexer
+) -> List[Dict[str, Any]]:
+    """Search by entity/folder name (lightweight name-based search)"""
+
+    logger.info(f"  📁 Searching for entity name: {entity_name}")
+
+    results = indexer.search_multi_collection(
+        query=entity_name,
+        collections=[f"{target_system}_collection"],
+        top_k=10
+    )
+
+    if f"{target_system}_collection" not in results:
+        return []
+
+    matches = []
+
+    for result in results[f"{target_system}_collection"]:
+        metadata = result.get('metadata', {})
+        file_path = metadata.get('absolute_file_path', '')
+        file_name = metadata.get('file_name', 'unknown')
+
+        # Check if entity name appears in path
+        if entity_name.lower() in file_path.lower():
+            match = {
+                'target_system': target_system,
+                'entity_name': file_name,
+                'file_path': file_path,
+                'similarity_score': 0.6,  # Moderate score for name match
+                'description': f"Name match: contains '{entity_name}'",
+                'metadata': metadata,
+                'logic_breakdown': {}
+            }
+            matches.append(match)
+
+    logger.info(f"    ✓ Found {len(matches)} name-based matches")
+
+    return matches
+
+
+def search_by_overall_pattern(
+    source_logic: Dict[str, Any],
+    target_system: str,
+    min_similarity: float,
+    indexer
+) -> List[Dict[str, Any]]:
+    """Search for overall workflow pattern (aggregated logic)"""
+
+    # Build search query from overall pattern
+    search_queries = []
+
+    # Transformation pattern
+    transformations = source_logic.get('transformations', [])
+    if transformations:
+        # Sample transformations, not all
+        sampled = transformations[::2][:5]  # Every 2nd, max 5
+        trans_pattern = " ".join([str(t) for t in sampled])
+        search_queries.append(trans_pattern)
+
+    # Table names (extract just names, not paths)
+    input_tables = source_logic.get('input_tables', [])
+    if input_tables:
+        table_names = [Path(t).name for t in input_tables[:3]]
+        search_queries.append(" ".join(table_names))
+
+    # Business logic
+    business_logic = source_logic.get('business_logic', [])
+    if business_logic:
+        search_queries.append(" ".join(business_logic[:3]))
+
+    if not search_queries:
+        return []
+
+    combined_query = " ".join(search_queries)
+
+    logger.info(f"  🎯 Searching for overall pattern: {combined_query[:150]}...")
+
+    # Search
+    results = indexer.search_multi_collection(
+        query=combined_query,
+        collections=[f"{target_system}_collection"],
+        top_k=20
+    )
+
+    if f"{target_system}_collection" not in results:
+        return []
+
+    # Analyze candidates
+    matches = []
+
+    for result in results[f"{target_system}_collection"]:
+        metadata = result.get('metadata', {})
+        file_path = metadata.get('absolute_file_path', '')
+        file_name = metadata.get('file_name', 'unknown')
+
+        if not file_path or not Path(file_path).exists():
+            continue
+
+        # Analyze target
+        target_logic = analyze_script_logic(file_path, target_system)
+
+        # Calculate similarity (using AI if available)
+        ai_analyzer = st.session_state.get('ai_analyzer')
+        pattern_score = calculate_logic_similarity(source_logic, target_logic, ai_analyzer)
+
+        if pattern_score >= min_similarity:
+            match = {
+                'target_system': target_system,
+                'entity_name': file_name,
+                'file_path': file_path,
+                'similarity_score': pattern_score,
+                'description': f"Pattern match: {', '.join(target_logic.get('transformations', [])[:3])}",
                 'metadata': metadata,
                 'logic_breakdown': {
                     'input_tables': target_logic.get('input_tables', []),
@@ -669,23 +877,97 @@ def search_by_logic_patterns(
             }
             matches.append(match)
 
-    # Sort by logic similarity
-    matches.sort(key=lambda x: x['similarity_score'], reverse=True)
-
-    logger.info(f"  ✓ Found {len(matches)} logic-based matches")
+    logger.info(f"    ✓ Found {len(matches)} pattern-based matches")
 
     return matches
 
 
-def calculate_logic_similarity(source: Dict, target: Dict) -> float:
+def ai_calculate_similarity(source: Dict, target: Dict, ai_analyzer) -> Optional[float]:
+    """
+    Use AI to semantically compare two logic profiles
+
+    This is more powerful than rule-based comparison because AI can understand:
+    - Semantic equivalence (different names, same meaning)
+    - Functional similarity (same outcome, different approach)
+    - Context-aware matching (understands business logic intent)
+    """
+    try:
+        prompt = f"""Compare these two data pipeline workflows and determine their semantic similarity (0.0 to 1.0).
+
+SOURCE WORKFLOW:
+- Input Tables: {source.get('input_tables', [])}
+- Output Tables: {source.get('output_tables', [])}
+- Transformations: {source.get('transformations', [])}
+- Business Logic: {source.get('business_logic', [])}
+
+TARGET WORKFLOW:
+- Input Tables: {target.get('input_tables', [])}
+- Output Tables: {target.get('output_tables', [])}
+- Transformations: {target.get('transformations', [])}
+- Business Logic: {target.get('business_logic', [])}
+
+Consider:
+1. Do they perform similar transformations? (even if expressed differently)
+2. Do they work with related data? (similar table names/patterns)
+3. Do they achieve similar business outcomes?
+4. Ignore minor differences in naming or syntax
+
+Return ONLY a single number between 0.0 and 1.0 representing similarity score.
+Examples: 0.0 (completely different), 0.5 (moderately similar), 0.9 (very similar)
+
+Your response (number only):"""
+
+        response = ai_analyzer.client.chat.completions.create(
+            model=ai_analyzer.deployment_name,
+            messages=[
+                {"role": "system", "content": "You are a data pipeline expert. Compare workflows semantically and return a similarity score."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.2,
+            max_tokens=50
+        )
+
+        result_text = response.choices[0].message.content.strip()
+
+        # Extract number
+        import re
+        match = re.search(r'(\d+\.?\d*)', result_text)
+        if match:
+            score = float(match.group(1))
+            # Ensure 0-1 range
+            if score > 1.0:
+                score = score / 100.0  # Handle percentage (e.g., 85 -> 0.85)
+            return min(max(score, 0.0), 1.0)
+
+        logger.warning(f"Could not parse AI similarity score: {result_text}")
+        return None
+
+    except Exception as e:
+        logger.warning(f"AI similarity calculation failed: {e}")
+        return None
+
+
+def calculate_logic_similarity(source: Dict, target: Dict, ai_analyzer=None) -> float:
     """
     Calculate similarity based on logic patterns, not just names
+
+    NEW: Uses AI for semantic comparison when available, falls back to rule-based
 
     Compares:
     - Transformation types (FILTER, JOIN, etc.)
     - Input/output table patterns
     - Business logic overlap
     """
+    # TRY AI FIRST (more intelligent)
+    if ai_analyzer and ai_analyzer.enabled:
+        ai_score = ai_calculate_similarity(source, target, ai_analyzer)
+        if ai_score is not None:
+            logger.debug(f"    🤖 AI similarity: {ai_score:.2f}")
+            return ai_score
+        # If AI fails, fall through to rule-based
+        logger.debug("    ⚙️ AI failed, using rule-based similarity")
+
+    # FALLBACK: Rule-based similarity
     score = 0.0
     max_score = 0.0
 
@@ -724,7 +1006,49 @@ def calculate_logic_similarity(source: Dict, target: Dict) -> float:
     # Normalize to 0-1 range
     final_score = score / max_score if max_score > 0 else 0
 
+    # BOOST: Apply fuzzy matching for transformation names
+    source_trans_norm = [normalize_transformation(t) for t in source.get('transformations', [])]
+    target_trans_norm = [normalize_transformation(t) for t in target.get('transformations', [])]
+
+    if source_trans_norm and target_trans_norm:
+        fuzzy_overlap = count_fuzzy_matches(source_trans_norm, target_trans_norm)
+        fuzzy_boost = (fuzzy_overlap / max(len(source_trans_norm), len(target_trans_norm), 1)) * 0.2
+        final_score = min(final_score + fuzzy_boost, 1.0)
+
     return final_score
+
+
+def normalize_transformation(trans: str) -> str:
+    """Normalize transformation names for fuzzy matching"""
+    trans_lower = str(trans).lower()
+
+    # Map variations to standard names
+    if 'filter' in trans_lower or 'where' in trans_lower:
+        return 'filter'
+    elif 'join' in trans_lower:
+        return 'join'
+    elif 'group' in trans_lower or 'aggregate' in trans_lower or 'agg' in trans_lower:
+        return 'group'
+    elif 'distinct' in trans_lower or 'duplicate' in trans_lower or 'dedup' in trans_lower:
+        return 'distinct'
+    elif 'sort' in trans_lower or 'order' in trans_lower:
+        return 'sort'
+    elif 'union' in trans_lower:
+        return 'union'
+    else:
+        return trans_lower
+
+
+def count_fuzzy_matches(list1: List[str], list2: List[str]) -> int:
+    """Count fuzzy matches between two lists"""
+    matches = 0
+    for item1 in list1:
+        for item2 in list2:
+            if item1 == item2 or item1 in item2 or item2 in item1:
+                matches += 1
+                break  # Count each item1 only once
+
+    return matches
 
 
 def search_target_system(
