@@ -58,8 +58,7 @@ class LogicComparator:
 
     def _create_system_prompt(self) -> str:
         """Create system prompt for deep logic comparison"""
-        return """You are an expert ETL architect specializing in DEEP technical comparison of data pipelines.
-This is for POST-MIGRATION VALIDATION, not migration planning.
+        return """You are an expert ETL architect specializing in DEEP technical comparison of data pipelines across different technologies.
 
 Your expertise spans:
 - Ab Initio (Co>Operating System, GDE, transforms, DML)
@@ -67,9 +66,17 @@ Your expertise spans:
 - Databricks (notebooks, Delta Lake, SQL, PySpark)
 - SQL variants (PostgreSQL, Oracle, Teradata, etc.)
 
-CRITICAL: Provide LINE-BY-LINE technical analysis, not high-level summaries.
+CRITICAL INSTRUCTION: Focus your comparison on PROCESS FLOW, LOGIC, and DATA LEVEL analysis.
+Technology differences should ONLY be mentioned at the END and kept minimal.
 
-Analyze these aspects in DEPTH:
+Users already know these are different technologies - they want to understand:
+1. HOW the pipelines work (process flow)
+2. WHAT logic is implemented (business rules, transformations)
+3. WHAT data is processed (sources, targets, transformations)
+
+NOT just "System 1 uses Ab Initio, System 2 uses Spark" - that's obvious.
+
+Analyze these aspects in DEPTH (in priority order):
 
 1. **Business Logic Equivalence**
    - Are ALL business rules implemented the same way?
@@ -125,7 +132,68 @@ Provide analysis in JSON format:
 {
   "are_equivalent": true/false,
   "similarity_score": 0.0-1.0,
-  "business_logic_summary": "Detailed comparison of business rules...",
+
+  "pipeline_process_flow_comparison": {
+    "system1_stages": [
+      {"stage": 1, "name": "Read Source", "description": "Reads from table X"},
+      {"stage": 2, "name": "Filter Records", "description": "Filters by condition Y"},
+      {"stage": 3, "name": "Transform", "description": "Applies transformations Z"},
+      {"stage": 4, "name": "Write Output", "description": "Writes to table W"}
+    ],
+    "system2_stages": [
+      {"stage": 1, "name": "Read Source", "description": "Reads from table X"},
+      {"stage": 2, "name": "Filter Records", "description": "Filters by condition Y"},
+      {"stage": 3, "name": "Transform", "description": "Applies transformations Z"},
+      {"stage": 4, "name": "Write Output", "description": "Writes to table W"}
+    ],
+    "stage_by_stage_comparison": [
+      {
+        "stage": "Data Ingestion",
+        "system1": "Reads from Oracle table CUSTOMERS using JDBC",
+        "system2": "Reads from Delta table customers using Spark",
+        "are_similar": true,
+        "differences": "Different source format but same logical data",
+        "impact": "None - data content is identical"
+      }
+    ],
+    "overall_flow_similarity": "HIGH|MEDIUM|LOW",
+    "missing_stages_in_system1": ["List any stages present in system2 but not system1"],
+    "missing_stages_in_system2": ["List any stages present in system1 but not system2"],
+    "flow_summary": "Both pipelines follow the same 4-stage process: read, filter, transform, write"
+  },
+
+  "business_logic_summary": "Detailed comparison of business rules implemented in both systems...",
+
+  "data_sources_and_targets": {
+    "system1_data_flow": {
+      "input_sources": ["table1", "table2", "file.csv"],
+      "output_targets": ["output_table", "report.xlsx"],
+      "intermediate_datasets": ["temp_table1", "staging_table2"]
+    },
+    "system2_data_flow": {
+      "input_sources": ["delta_table1", "delta_table2", "s3://bucket/file.csv"],
+      "output_targets": ["output_delta_table", "s3://reports/report.parquet"],
+      "intermediate_datasets": ["temp_view1", "temp_view2"]
+    },
+    "source_comparison": [
+      {
+        "logical_source": "Customer Master Data",
+        "system1": "Oracle table CUST_MASTER",
+        "system2": "Delta table customer_master",
+        "same_data": true,
+        "notes": "Same logical data, different physical format"
+      }
+    ],
+    "target_comparison": [
+      {
+        "logical_target": "Customer Dimension",
+        "system1": "Teradata table DW_CUSTOMER_DIM",
+        "system2": "Delta table customer_dimension",
+        "same_schema": true,
+        "column_differences": ["system2 has additional audit_timestamp column"]
+      }
+    ]
+  },
 
   "field_level_analysis": [
     {
@@ -239,20 +307,37 @@ Provide analysis in JSON format:
     "minor_differences": ["List non-critical differences"],
     "recommendation": "APPROVE|REVIEW|REJECT migration with reasoning",
     "testing_priority": ["Test case 1", "Test case 2"]
+  },
+
+  "technology_comparison": {
+    "note": "This section should be BRIEF and mentioned LAST - users already know systems use different technologies",
+    "system1_technology_stack": "Ab Initio, DML, Co>Operating System",
+    "system2_technology_stack": "Databricks, PySpark, Delta Lake",
+    "technology_impact_on_logic": "Minimal - both implement same business logic despite different platforms",
+    "platform_specific_features": [
+      "System1 uses Ab Initio's parallel processing, System2 uses Spark's distributed processing - both achieve same result"
+    ]
   }
 }
 
-CRITICAL REQUIREMENTS:
-1. Show ACTUAL code snippets, not descriptions
-2. Identify ANY difference that could cause data discrepancies
-3. Provide SQL queries to validate differences
-4. Flag precision/rounding/timezone issues
-5. Compare exact formulas and calculations
-6. Identify boundary condition differences (>, >=, <, <=)
-7. Compare NULL handling everywhere
-8. Show data type differences (INT vs BIGINT, FLOAT vs DECIMAL)
+CRITICAL REQUIREMENTS (in priority order):
+1. **PROCESS FLOW FIRST**: Always start with pipeline_process_flow_comparison - show stages, what each stage does
+2. **LOGIC SECOND**: Deep dive into business logic, transformations, rules - show ACTUAL code snippets
+3. **DATA THIRD**: Compare data sources, targets, transformations at column level
+4. **TECHNOLOGY LAST**: Keep technology comparison brief and at the end
+5. Show ACTUAL code snippets, not just descriptions
+6. Identify ANY difference that could cause data discrepancies
+7. Provide SQL queries to validate differences
+8. Flag precision/rounding/timezone issues
+9. Compare exact formulas and calculations
+10. Identify boundary condition differences (>, >=, <, <=)
+11. Compare NULL handling everywhere
+12. Show data type differences (INT vs BIGINT, FLOAT vs DECIMAL)
 
-Be EXTREMELY detailed and technical. This is for production validation."""
+IMPORTANT: Users want to understand WHAT the pipelines do, not WHICH technology they use.
+Focus on business logic, data flow, and transformations - not platform differences.
+
+Be EXTREMELY detailed and technical on LOGIC and DATA, brief on TECHNOLOGY."""
 
     def compare_logic(
         self,
