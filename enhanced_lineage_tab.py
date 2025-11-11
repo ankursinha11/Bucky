@@ -317,7 +317,7 @@ def trace_table_lineage(
     lineage_hops = []
     visited_scripts = set()  # Avoid duplicates
     tables_to_trace = {table}  # Start with requested table
-    all_discovered_tables = set()  # Track all tables in lineage chain
+    all_discovered_tables = {table}  # Track all tables in lineage chain
 
     hop_number = 1
 
@@ -330,9 +330,11 @@ def trace_table_lineage(
         tables_to_trace.clear()
 
         for current_table in current_tables:
-            # Find scripts that use this table
+            logger.info(f"Hop {hop_iteration + 1}: Tracing table '{current_table}'")
+
+            # Search for files mentioning this table (simpler query)
             context = copilot.retrieve_context_for_query(
-                query=f"table {current_table} FROM INSERT CREATE",
+                query=f"{current_table}",
                 systems=include_systems,
                 context_type="lineage"
             )
@@ -341,9 +343,12 @@ def trace_table_lineage(
                 logger.debug(f"No files found for table {current_table}")
                 continue
 
+            logger.info(f"Found {len(context.snippets)} files mentioning '{current_table}'")
+
             # Use AI to understand each script
-            for snippet in context.snippets[:5]:  # Top 5 most relevant
+            for snippet in context.snippets[:8]:  # Top 8 most relevant
                 script_path = snippet.get('file_path', snippet.get('file_name', ''))
+                file_name = snippet.get('file_name', 'Unknown')
 
                 # Skip if already processed
                 if script_path in visited_scripts:
@@ -351,134 +356,264 @@ def trace_table_lineage(
 
                 visited_scripts.add(script_path)
 
-                # Get file content
-                file_content = snippet.get('content', '')[:4000]  # Limit to 4000 chars
+                # Try to read actual file content for better analysis
+                file_content = ""
+                try:
+                    # Try to read from file_path if it's a full path
+                    from pathlib import Path
+                    if script_path and Path(script_path).exists():
+                        with open(script_path, 'r', encoding='utf-8', errors='ignore') as f:
+                            file_content = f.read(6000)  # Read first 6000 chars
+                    else:
+                        # Use snippet content
+                        file_content = snippet.get('content', '')[:6000]
+                except Exception as e:
+                    logger.debug(f"Could not read file {script_path}: {e}")
+                    file_content = snippet.get('content', '')[:6000]
+
+                if not file_content or len(file_content) < 10:
+                    logger.debug(f"Skipping {file_name} - insufficient content")
+                    continue
 
                 # Use AI to understand data flow in this script
-                if ai_analyzer and ai_analyzer.enabled and file_content:
+                if ai_analyzer and ai_analyzer.enabled:
                     try:
+                        logger.debug(f"Analyzing {file_name} with AI...")
+
+                        ai_prompt = f"""Analyze this script and extract the data lineage flow.
+
+File: {file_name}
+System: {snippet.get('system', 'unknown')}
+
+Script Content:
+{file_content[:5000]}
+
+Extract the following information:
+1. INPUT_SOURCES: What tables/files are being READ (SELECT FROM, EXTERNAL TABLE location, source files)?
+2. OUTPUT_TARGETS: What tables/files are being WRITTEN (INSERT INTO, CREATE TABLE, output files)?
+3. TRANSFORMATION: What is this script doing (in one clear sentence)?
+4. OPERATION_TYPE: What type of operation (CREATE_TABLE, INSERT, LOAD, ETL_TRANSFORM, VIEW)?
+
+Return ONLY valid JSON (no markdown, no explanation):
+{{"input_sources": ["source1", "source2"], "output_targets": ["target1"], "transformation": "brief description", "operation_type": "CREATE_TABLE"}}"""
+
                         ai_analysis = ai_analyzer.analyze_with_context(
-                            query=f"""Analyze this {snippet.get('system', 'unknown')} script and extract data lineage:
-
-1. What tables/files does it READ FROM (input sources)?
-2. What tables/files does it WRITE TO (output targets)?
-3. What is the main transformation/purpose?
-4. What type of operation is this (CREATE TABLE, INSERT, SELECT, ETL, etc.)?
-
-File: {snippet.get('file_name', 'Unknown')}
-Content:
-{file_content}
-
-Respond in JSON format:
-{{
-    "input_sources": ["table1", "table2"],
-    "output_targets": ["target_table"],
-    "transformation": "Description of what this script does",
-    "operation_type": "CREATE_TABLE|INSERT|SELECT|ETL|INGESTION|REPORTING"
-}}""",
+                            query=ai_prompt,
                             context=""
                         )
 
-                        # Parse AI response
+                        # Parse AI response with robust error handling
                         import json
-                        import re
-
-                        # Extract JSON from response
                         response_text = ai_analysis.get('analysis', ai_analysis.get('response', ''))
 
+                        # Clean response text
+                        response_text = response_text.strip()
+
+                        # Try multiple extraction methods
+                        json_str = None
                         if '```json' in response_text:
-                            json_str = response_text.split('```json')[1].split('```')[0].strip()
-                        elif '```' in response_text:
-                            json_str = response_text.split('```')[1].split('```')[0].strip()
-                        elif '{' in response_text:
-                            # Find JSON object
-                            start = response_text.find('{')
-                            end = response_text.rfind('}') + 1
-                            json_str = response_text[start:end]
-                        else:
+                            try:
+                                json_str = response_text.split('```json')[1].split('```')[0].strip()
+                            except:
+                                pass
+
+                        if not json_str and '```' in response_text:
+                            try:
+                                json_str = response_text.split('```')[1].split('```')[0].strip()
+                            except:
+                                pass
+
+                        if not json_str and '{' in response_text and '}' in response_text:
+                            try:
+                                start = response_text.find('{')
+                                end = response_text.rfind('}') + 1
+                                json_str = response_text[start:end]
+                            except:
+                                pass
+
+                        if not json_str:
                             json_str = response_text
 
+                        # Parse JSON with better error handling
+                        flow_info = None
                         try:
                             flow_info = json.loads(json_str)
-                        except:
-                            logger.warning(f"Could not parse AI response as JSON for {script_path}")
-                            # Fallback: extract from text
-                            flow_info = {
-                                "input_sources": [current_table],
-                                "output_targets": [current_table],
-                                "transformation": "Transform",
-                                "operation_type": "UNKNOWN"
-                            }
+                            logger.debug(f"Successfully parsed AI response for {file_name}")
+                        except json.JSONDecodeError as je:
+                            logger.warning(f"JSON parse error for {file_name}: {je}")
+                            # Try to extract info from text manually
+                            flow_info = _extract_lineage_from_text(response_text, current_table)
 
-                        input_sources = flow_info.get('input_sources', [current_table])
-                        output_targets = flow_info.get('output_targets', [current_table])
-                        transformation = flow_info.get('transformation', 'Transform')
+                        if not flow_info or not isinstance(flow_info, dict):
+                            logger.warning(f"Invalid AI response for {file_name}, using fallback")
+                            flow_info = _extract_lineage_from_code(file_content, current_table)
+
+                        input_sources = flow_info.get('input_sources', [])
+                        output_targets = flow_info.get('output_targets', [])
+                        transformation = flow_info.get('transformation', 'Data transformation')
                         operation_type = flow_info.get('operation_type', 'TABLE_TRANSFORM')
 
-                        # Create hops for each input → output pair
-                        for input_src in input_sources:
-                            for output_tgt in output_targets:
-                                # Skip self-references unless it's the only thing
-                                if input_src == output_tgt and len(input_sources) > 1:
-                                    continue
+                        # Validate we got meaningful data
+                        if not input_sources and not output_targets:
+                            logger.debug(f"No meaningful lineage found in {file_name}")
+                            continue
 
+                        logger.info(f"✓ {file_name}: {len(input_sources)} inputs → {len(output_targets)} outputs")
+
+                        # Create hops for each input → output pair
+                        if output_targets:
+                            for output_tgt in output_targets:
+                                # Use all inputs if available, or current table
+                                sources = input_sources if input_sources else [current_table]
+
+                                for input_src in sources:
+                                    hop = LineageHop(
+                                        hop_number=hop_number,
+                                        source_table=input_src,
+                                        source_column=None,
+                                        transformation=transformation[:150],
+                                        transformation_type=operation_type,
+                                        script_name=file_name,
+                                        script_path=script_path,
+                                        target_table=output_tgt,
+                                        target_column=None,
+                                        system=snippet.get('system', 'unknown')
+                                    )
+                                    lineage_hops.append(hop)
+                                    hop_number += 1
+
+                                # Add output table for next iteration
+                                if output_tgt not in all_discovered_tables:
+                                    tables_to_trace.add(output_tgt)
+                                    all_discovered_tables.add(output_tgt)
+                                    logger.debug(f"Added '{output_tgt}' to next hop tracing")
+                        else:
+                            # Only inputs found (terminal node)
+                            for input_src in input_sources:
                                 hop = LineageHop(
                                     hop_number=hop_number,
                                     source_table=input_src,
                                     source_column=None,
-                                    transformation=transformation[:100],  # Truncate long descriptions
+                                    transformation=transformation[:150],
                                     transformation_type=operation_type,
-                                    script_name=snippet['file_name'],
+                                    script_name=file_name,
                                     script_path=script_path,
-                                    target_table=output_tgt,
+                                    target_table=current_table,
                                     target_column=None,
-                                    system=snippet['system']
+                                    system=snippet.get('system', 'unknown')
                                 )
-
                                 lineage_hops.append(hop)
                                 hop_number += 1
 
-                                # Add output tables for next iteration tracing
-                                if output_tgt not in all_discovered_tables and output_tgt != current_table:
-                                    tables_to_trace.add(output_tgt)
-                                    all_discovered_tables.add(output_tgt)
-
                     except Exception as e:
-                        logger.error(f"AI analysis failed for {script_path}: {e}")
-                        # Fallback: create basic hop
-                        hop = LineageHop(
-                            hop_number=hop_number,
-                            source_table=current_table,
-                            source_column=None,
-                            transformation="Transform (AI analysis unavailable)",
-                            transformation_type="TABLE_TRANSFORM",
-                            script_name=snippet['file_name'],
-                            script_path=script_path,
-                            target_table=current_table,
-                            target_column=None,
-                            system=snippet['system']
-                        )
-                        lineage_hops.append(hop)
-                        hop_number += 1
+                        logger.error(f"AI analysis failed for {file_name}: {e}")
+                        # Try code-based extraction as fallback
+                        try:
+                            flow_info = _extract_lineage_from_code(file_content, current_table)
+                            if flow_info and (flow_info.get('input_sources') or flow_info.get('output_targets')):
+                                input_sources = flow_info.get('input_sources', [current_table])
+                                output_targets = flow_info.get('output_targets', [current_table])
 
-                else:
-                    # No AI available, create basic hop
-                    hop = LineageHop(
-                        hop_number=hop_number,
-                        source_table=current_table,
-                        source_column=None,
-                        transformation="Transform",
-                        transformation_type="TABLE_TRANSFORM",
-                        script_name=snippet['file_name'],
-                        script_path=script_path,
-                        target_table=current_table,
-                        system=snippet['system']
-                    )
-                    lineage_hops.append(hop)
-                    hop_number += 1
+                                hop = LineageHop(
+                                    hop_number=hop_number,
+                                    source_table=input_sources[0] if input_sources else current_table,
+                                    source_column=None,
+                                    transformation=flow_info.get('transformation', 'Transform'),
+                                    transformation_type=flow_info.get('operation_type', 'TABLE_TRANSFORM'),
+                                    script_name=file_name,
+                                    script_path=script_path,
+                                    target_table=output_targets[0] if output_targets else current_table,
+                                    target_column=None,
+                                    system=snippet.get('system', 'unknown')
+                                )
+                                lineage_hops.append(hop)
+                                hop_number += 1
+                        except Exception as e2:
+                            logger.debug(f"Fallback extraction also failed: {e2}")
 
     logger.info(f"Traced {len(lineage_hops)} lineage hops across {len(visited_scripts)} scripts")
     return lineage_hops
+
+
+def _extract_lineage_from_text(text: str, current_table: str) -> dict:
+    """Extract lineage info from AI text response when JSON parsing fails"""
+    import re
+
+    result = {
+        "input_sources": [],
+        "output_targets": [],
+        "transformation": "Data transformation",
+        "operation_type": "TABLE_TRANSFORM"
+    }
+
+    # Try to find lists of tables
+    text_lower = text.lower()
+
+    # Look for input sources
+    if 'input' in text_lower or 'source' in text_lower or 'read' in text_lower:
+        # Extract table names (simple heuristic)
+        matches = re.findall(r'\b([a-z_][a-z0-9_]{2,})\b', text_lower)
+        result['input_sources'] = [m for m in matches if m != current_table.lower()][:3]
+
+    # Look for output targets
+    if 'output' in text_lower or 'target' in text_lower or 'write' in text_lower or 'create' in text_lower:
+        matches = re.findall(r'\b([a-z_][a-z0-9_]{2,})\b', text_lower)
+        result['output_targets'] = [m for m in matches if m != current_table.lower()][:3]
+
+    return result if result['input_sources'] or result['output_targets'] else None
+
+
+def _extract_lineage_from_code(code: str, current_table: str) -> dict:
+    """Extract lineage from code using pattern matching"""
+    import re
+
+    result = {
+        "input_sources": [],
+        "output_targets": [],
+        "transformation": "Data transformation",
+        "operation_type": "TABLE_TRANSFORM"
+    }
+
+    code_upper = code.upper()
+
+    # Find CREATE TABLE statements
+    create_matches = re.findall(r'CREATE\s+(?:EXTERNAL\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z_][a-zA-Z0-9_]*)', code_upper)
+    if create_matches:
+        result['output_targets'].extend([m.lower() for m in create_matches])
+        result['operation_type'] = 'CREATE_TABLE'
+
+        # For EXTERNAL TABLE, also look for location (input source)
+        location_matches = re.findall(r"location\s+['\"]([^'\"]+)['\"]", code, re.IGNORECASE)
+        if location_matches:
+            # Extract just the filename/table from path
+            for loc in location_matches:
+                parts = loc.split('/')
+                source_name = parts[-1] if parts else loc
+                if source_name and source_name != current_table.lower():
+                    result['input_sources'].append(source_name.lower())
+                    result['transformation'] = f"Create external table reading from {loc}"
+
+    # Find INSERT INTO statements
+    insert_matches = re.findall(r'INSERT\s+(?:INTO|OVERWRITE)\s+(?:TABLE\s+)?([a-zA-Z_][a-zA-Z0-9_]*)', code_upper)
+    if insert_matches:
+        result['output_targets'].extend([m.lower() for m in insert_matches])
+        result['operation_type'] = 'INSERT'
+
+    # Find FROM statements (inputs)
+    from_matches = re.findall(r'FROM\s+([a-zA-Z_][a-zA-Z0-9_]*)', code_upper)
+    if from_matches:
+        result['input_sources'].extend([m.lower() for m in from_matches if m.lower() != current_table.lower()])
+
+    # Find JOIN statements (more inputs)
+    join_matches = re.findall(r'JOIN\s+([a-zA-Z_][a-zA-Z0-9_]*)', code_upper)
+    if join_matches:
+        result['input_sources'].extend([m.lower() for m in join_matches if m.lower() != current_table.lower()])
+
+    # Deduplicate
+    result['input_sources'] = list(set(result['input_sources']))
+    result['output_targets'] = list(set(result['output_targets']))
+
+    return result if result['input_sources'] or result['output_targets'] else None
 
 
 def convert_column_journey_to_lineage(
