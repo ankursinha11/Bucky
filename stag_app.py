@@ -1522,7 +1522,8 @@ def index_all_repository_files_with_ai(
     sttm_generator: STTMGenerator,
     progress_bar=None,
     status_text=None,
-    file_filter: List[str] = None
+    file_filter: List[str] = None,
+    skip_json_export: bool = False
 ) -> Dict[str, Any]:
     """
     Deep repository indexing - Index ALL files (or filtered files) with AI understanding
@@ -1538,6 +1539,7 @@ def index_all_repository_files_with_ai(
         progress_bar: Streamlit progress bar
         status_text: Streamlit status text widget
         file_filter: Optional list of file name patterns to filter (for Ab Initio graphs)
+        skip_json_export: If True, skip writing JSON files to disk (saves disk space)
 
     Returns:
         Dict with indexing statistics
@@ -1737,23 +1739,32 @@ Content (first 8000 chars):
             documents.append(document)
             logger.debug(f"✓ Created document for {file_path.name} (total: {len(documents)})")
 
-            # Save document to disk
-            # CRITICAL FIX: Resolve path to absolute and convert to string
-            # SAFETY: Truncate long filenames to prevent Windows path length issues
-            safe_filename = file_path.stem[:100] if len(file_path.stem) > 100 else file_path.stem
-            doc_file = (output_base / f"{safe_filename}_{hash(str(file_path)) % 10000}.json").resolve()
+            # Save document to disk (OPTIONAL - if disk space available)
+            # Can be disabled with skip_json_export=True to save disk space
+            if not skip_json_export:
+                # CRITICAL FIX: Resolve path to absolute and convert to string
+                # SAFETY: Truncate long filenames to prevent Windows path length issues
+                safe_filename = file_path.stem[:100] if len(file_path.stem) > 100 else file_path.stem
+                doc_file = (output_base / f"{safe_filename}_{hash(str(file_path)) % 10000}.json").resolve()
 
-            # SAFETY CHECK: Verify the file path length
-            if len(str(doc_file)) > 250:
-                logger.warning(f"File path too long ({len(str(doc_file))} chars), using shorter name")
-                doc_file = (output_base / f"{hash(str(file_path)) % 100000}.json").resolve()
+                # SAFETY CHECK: Verify the file path length
+                if len(str(doc_file)) > 250:
+                    logger.warning(f"File path too long ({len(str(doc_file))} chars), using shorter name")
+                    doc_file = (output_base / f"{hash(str(file_path)) % 100000}.json").resolve()
 
-            try:
-                with open(str(doc_file), 'w', encoding='utf-8') as f:
-                    json.dump(document, f, indent=2, default=str)
-            except Exception as e:
-                logger.error(f"Failed to write document file {doc_file}: {e}")
-                continue
+                try:
+                    with open(str(doc_file), 'w', encoding='utf-8') as f:
+                        json.dump(document, f, indent=2, default=str)
+                except OSError as e:
+                    # Handle disk full errors gracefully
+                    if e.errno == 28:  # No space left on device
+                        logger.warning(f"⚠️ Disk full - skipping JSON file write for {file_path.name}")
+                        logger.warning(f"💡 Document will still be indexed to vector DB (which is what matters)")
+                        # Don't use 'continue' - we still want to process STTM and continue indexing
+                    else:
+                        logger.error(f"Failed to write document file {doc_file}: {e}")
+                except Exception as e:
+                    logger.error(f"Failed to write document file {doc_file}: {e}")
 
             # Generate STTM mappings if possible
             if sttm_generator:
@@ -1776,22 +1787,33 @@ Content (first 8000 chars):
     # Log summary
     logger.info(f"Finished processing {total_files} files, created {len(documents)} documents")
 
-    # Save STTM mappings
+    # Save STTM mappings (OPTIONAL - if disk space available)
     if sttm_mappings:
         # CRITICAL FIX: Resolve paths to absolute and convert to string
         sttm_file = (sttm_output / f"sttm_mappings_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json").resolve()
         try:
             sttm_generator.export_to_json(sttm_mappings, str(sttm_file))
             logger.info(f"Successfully saved STTM JSON to {sttm_file}")
+        except OSError as e:
+            if e.errno == 28:  # No space left on device
+                logger.warning(f"⚠️ Disk full - skipping STTM JSON export")
+                logger.info(f"💡 STTM mappings generated but not saved to disk (disk full)")
+            else:
+                logger.error(f"Failed to save STTM JSON to {sttm_file}: {e}")
         except Exception as e:
-            logger.error(f"Failed to save STTM JSON to {sttm_file}: {e}", exc_info=True)
+            logger.error(f"Failed to save STTM JSON to {sttm_file}: {e}")
 
         sttm_excel = (sttm_output / f"sttm_mappings_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx").resolve()
         try:
             sttm_generator.export_to_excel(sttm_mappings, str(sttm_excel))
             logger.info(f"Successfully saved STTM Excel to {sttm_excel}")
+        except OSError as e:
+            if e.errno == 28:  # No space left on device
+                logger.warning(f"⚠️ Disk full - skipping STTM Excel export")
+            else:
+                logger.error(f"Failed to save STTM Excel to {sttm_excel}: {e}")
         except Exception as e:
-            logger.error(f"Failed to save STTM Excel to {sttm_excel}: {e}", exc_info=True)
+            logger.error(f"Failed to save STTM Excel to {sttm_excel}: {e}")
 
         if status_text:
             status_text.text(f"✓ Generated {len(sttm_mappings)} STTM mappings")
@@ -1937,6 +1959,8 @@ def reindex_abinitio_from_directory(directory_path: str):
         progress_bar.progress(10)
 
         # Use deep indexing with graph filtering
+        # DISK SPACE OPTIMIZATION: Skip JSON export for Ab Initio (large files)
+        # Vector DB is what matters for search/chat/lineage - JSON files are just backups
         result = index_all_repository_files_with_ai(
             repository_path=directory_path,
             system_type="abinitio",
@@ -1944,7 +1968,8 @@ def reindex_abinitio_from_directory(directory_path: str):
             sttm_generator=st.session_state.sttm_generator,
             progress_bar=progress_bar,
             status_text=status_text,
-            file_filter=FILTERED_ABINITIO_GRAPHS if FILTERED_ABINITIO_GRAPHS else None
+            file_filter=FILTERED_ABINITIO_GRAPHS if FILTERED_ABINITIO_GRAPHS else None,
+            skip_json_export=True  # Skip JSON files to prevent disk full errors
         )
 
         # Index all documents to vector database
