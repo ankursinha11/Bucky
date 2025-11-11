@@ -192,14 +192,43 @@ class LocalSearchClient:
                             metadatas=batch_metadatas,
                         )
 
+                        # Add small delay between batches to allow ChromaDB to compact
+                        if batch_end < len(texts):
+                            import time
+                            time.sleep(0.5)  # 500ms delay to ease compaction pressure
+
                         # Success - move to next batch
                         i = batch_end
 
                     except Exception as batch_error:
                         error_msg = str(batch_error).lower()
 
+                        # Check if it's a ChromaDB compaction error
+                        if 'compaction' in error_msg or 'metadata segment' in error_msg or 'failed to apply logs' in error_msg:
+                            logger.warning(f"  ⚠️ ChromaDB compaction error: {batch_error}")
+
+                            # Reduce batch size significantly for compaction issues
+                            if current_batch_size > 5:
+                                current_batch_size = max(5, current_batch_size // 4)
+                                logger.warning(f"  Reducing batch size to {current_batch_size} to ease compaction pressure...")
+                                # Add delay to let ChromaDB recover
+                                import time
+                                time.sleep(2.0)
+                                # Don't increment i - retry with smaller batch
+                            elif current_batch_size > 1:
+                                current_batch_size = 1
+                                logger.warning(f"  Reducing to batch_size=1 with extended recovery delay...")
+                                import time
+                                time.sleep(5.0)  # Longer delay for recovery
+                                # Don't increment i - retry
+                            else:
+                                # Already at batch_size=1, skip problematic document
+                                logger.error(f"  ❌ Skipping document {i+1} - cannot resolve compaction error even with batch_size=1")
+                                logger.error(f"  Document may have corrupted metadata: {batch_ids[0] if batch_ids else 'unknown'}")
+                                i += 1
+
                         # Check if it's a memory error
-                        if 'memory' in error_msg or 'allocation' in error_msg:
+                        elif 'memory' in error_msg or 'allocation' in error_msg:
                             # Reduce batch size and retry
                             if current_batch_size > 1:
                                 current_batch_size = max(1, current_batch_size // 2)
@@ -212,7 +241,7 @@ class LocalSearchClient:
                                 # Skip this document
                                 i += 1
                         else:
-                            # Non-memory error - raise it
+                            # Non-memory/non-compaction error - raise it
                             raise batch_error
 
             logger.info(f"✓ Indexed {len(ids)} documents successfully (upserted)")
