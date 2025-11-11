@@ -1681,12 +1681,24 @@ Content (first 8000 chars):
             # Create comprehensive document
             file_id = f"{system_type}_{file_path.stem}_{hash(str(file_path)) % 100000}"
 
+            # CRITICAL FIX: Truncate very large content to prevent ChromaDB SQLite size limits
+            # ChromaDB's underlying SQLite database has size limits (typically ~2GB)
+            # Large Ab Initio files can be 500KB+, causing "database or disk is full" errors
+            MAX_CONTENT_SIZE = 50000  # 50KB max content in vector DB (still searchable)
+
+            full_content = content
+            if len(content) > MAX_CONTENT_SIZE:
+                logger.warning(f"⚠️ Truncating large file {file_path.name} from {len(content)} to {MAX_CONTENT_SIZE} chars")
+                content_for_db = content[:MAX_CONTENT_SIZE] + "\n\n... (content truncated for database storage, full content available in file)"
+            else:
+                content_for_db = content
+
             doc_content = f"""# {file_path.name}
 
 **System:** {system_type.upper()}
 **Path:** {file_path.relative_to(repo_path)}
 **Type:** {file_path.suffix}
-**Size:** {len(content)} characters
+**Size:** {len(full_content)} characters (DB stores {len(content_for_db)} chars)
 
 ## AI Understanding
 {ai_understanding}
@@ -1696,12 +1708,12 @@ Content (first 8000 chars):
 
 ## Code Content (Preview)
 ```
-{content[:2000]}
+{full_content[:2000]}
 ...
 ```
 
-## Full Content (Searchable)
-{content}
+## Searchable Content
+{content_for_db}
 """
 
             document = {
@@ -1717,7 +1729,8 @@ Content (first 8000 chars):
                     "file_type": file_path.suffix,
                     "has_ai_analysis": bool(ai_analyzer and ai_analyzer.enabled),
                     "references_count": len(referenced_files),
-                    "file_size": len(content)
+                    "file_size": len(full_content),  # Original file size
+                    "content_truncated": len(full_content) > MAX_CONTENT_SIZE
                 }
             }
 
