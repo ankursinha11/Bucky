@@ -203,8 +203,23 @@ class LocalSearchClient:
                     except Exception as batch_error:
                         error_msg = str(batch_error).lower()
 
+                        # Check if it's a SQLite "database or disk is full" error (Error code 13)
+                        if 'database or disk is full' in error_msg or 'disk is full' in error_msg or 'code: 13' in error_msg:
+                            logger.error(f"  ❌ SQLite database size limit reached: {batch_error}")
+                            logger.error(f"  Document {i+1} is too large or database has hit SQLite size limits")
+                            logger.error(f"  Document ID: {batch_ids[0] if batch_ids else 'unknown'}")
+                            logger.error(f"  Document size: {len(batch_texts[0])} chars")
+
+                            # Log the solution
+                            logger.warning(f"  💡 SOLUTION: This document contains too much content.")
+                            logger.warning(f"  The indexing will continue, but this large document will be skipped.")
+                            logger.warning(f"  Consider reducing content size by truncating large files.")
+
+                            # Skip this document and continue
+                            i += 1
+
                         # Check if it's a ChromaDB compaction error
-                        if 'compaction' in error_msg or 'metadata segment' in error_msg or 'failed to apply logs' in error_msg:
+                        elif 'compaction' in error_msg or 'metadata segment' in error_msg or 'failed to apply logs' in error_msg:
                             logger.warning(f"  ⚠️ ChromaDB compaction error: {batch_error}")
 
                             # Reduce batch size significantly for compaction issues
@@ -340,7 +355,7 @@ class LocalSearchClient:
             logger.error(f"Error deleting collection: {e}")
 
     def get_stats(self) -> Dict[str, Any]:
-        """Get collection statistics"""
+        """Get collection statistics with corruption recovery"""
         if not self.collection:
             return {
                 "error": "No collection initialized",
@@ -358,12 +373,30 @@ class LocalSearchClient:
                 "persist_directory": str(self.persist_directory),
             }
         except Exception as e:
-            logger.error(f"Error getting stats: {e}")
-            return {
-                "error": str(e),
-                "document_count": 0,
-                "collection_count": 0,
-            }
+            error_msg = str(e).lower()
+
+            # Check if it's a ChromaDB corruption error
+            if 'compaction' in error_msg or 'metadata segment' in error_msg or 'backfill' in error_msg:
+                logger.error(f"⚠️ ChromaDB database appears corrupted: {e}")
+                logger.error(f"Database location: {self.persist_directory}")
+                logger.warning("💡 To fix: Delete the vector database and re-index your data")
+                logger.warning(f"   Command: rm -rf {self.persist_directory}")
+
+                return {
+                    "error": "Database corrupted - needs reset",
+                    "error_detail": str(e),
+                    "document_count": 0,
+                    "collection_count": 0,
+                    "corrupted": True,
+                    "fix_instructions": f"Delete {self.persist_directory} and re-index"
+                }
+            else:
+                logger.error(f"Error getting stats: {e}")
+                return {
+                    "error": str(e),
+                    "document_count": 0,
+                    "collection_count": 0,
+                }
 
 
 # Convenience function for quick testing
