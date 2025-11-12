@@ -46,6 +46,11 @@ from services.ai_script_analyzer import AIScriptAnalyzer
 # STTM Generator
 from services.lineage.sttm_generator import STTMGenerator
 
+# Workflow Intelligence (NEW)
+from services.stag_workflow_integration import STAGWorkflowIntelligence
+from services.document_generator import DocumentGenerator
+from services.document_analyzer import DocumentAnalyzer
+
 # UI Components
 from ui.lineage_tab import render_lineage_tab
 from ui.system_mapping_tab import render_system_mapping_tab
@@ -489,6 +494,148 @@ def render_chat_interface():
                     if message["metadata"].get("data"):
                         st.json(message["metadata"]["data"])
 
+    # Document Features Section (NEW)
+    st.divider()
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        # Document Generation
+        with st.expander("📄 Generate Documents"):
+            st.caption("Generate comparison sheets and reports")
+
+            doc_type = st.selectbox(
+                "Document Type",
+                ["Comparison Sheet", "Mapping Report"],
+                key="doc_type"
+            )
+
+            if doc_type == "Comparison Sheet":
+                wf1_name = st.text_input("Workflow 1 name:", key="gen_wf1", placeholder="e.g., ie_prebdf")
+                wf2_name = st.text_input("Workflow 2 name:", key="gen_wf2", placeholder="e.g., ie_prebdf_v2")
+
+                format_type = st.selectbox("Format:", ["Excel", "JSON", "Markdown"], key="gen_format")
+
+                if st.button("Generate Comparison", key="gen_comp_btn"):
+                    if wf1_name and wf2_name and 'workflow_intelligence' in st.session_state:
+                        try:
+                            intelligence = st.session_state['workflow_intelligence']
+
+                            with st.spinner("Finding workflows..."):
+                                wf1 = intelligence._find_workflow_signature(wf1_name)
+                                wf2 = intelligence._find_workflow_signature(wf2_name)
+
+                            if wf1 and wf2:
+                                with st.spinner("Generating document..."):
+                                    data_sim, logic_sim, business_sim = \
+                                        intelligence.integration.mapper.calculate_similarity(wf1, wf2)
+
+                                    generator = DocumentGenerator()
+                                    file_path = generator.generate_comparison_sheet(
+                                        wf1, wf2,
+                                        {
+                                            "data_flow": data_sim,
+                                            "logic": logic_sim,
+                                            "business": business_sim,
+                                            "overall": data_sim * 0.5 + logic_sim * 0.3 + business_sim * 0.2
+                                        },
+                                        output_format=format_type.lower()
+                                    )
+
+                                    st.success(f"✅ Document generated!")
+
+                                    with open(file_path, 'rb') as f:
+                                        st.download_button(
+                                            "⬇️ Download",
+                                            f,
+                                            file_name=Path(file_path).name,
+                                            key="download_comp"
+                                        )
+                            else:
+                                st.error("❌ Workflows not found. Try different names or use partial names.")
+                        except Exception as e:
+                            st.error(f"Error generating document: {e}")
+                    else:
+                        st.warning("⚠️ Please enter both workflow names and ensure indexing is complete.")
+
+            elif doc_type == "Mapping Report":
+                format_type = st.selectbox("Format:", ["Excel", "JSON", "Markdown"], key="gen_report_format")
+
+                if st.button("Generate Report", key="gen_report_btn"):
+                    if 'workflow_intelligence' in st.session_state:
+                        try:
+                            intelligence = st.session_state['workflow_intelligence']
+
+                            with st.spinner("Generating mapping report..."):
+                                generator = DocumentGenerator()
+                                file_path = generator.generate_mapping_report(
+                                    intelligence.workflow_mappings,
+                                    output_format=format_type.lower(),
+                                    title="Workflow Mapping Report"
+                                )
+
+                                st.success(f"✅ Report generated!")
+
+                                with open(file_path, 'rb') as f:
+                                    st.download_button(
+                                        "⬇️ Download",
+                                        f,
+                                        file_name=Path(file_path).name,
+                                        key="download_report"
+                                    )
+                        except Exception as e:
+                            st.error(f"Error generating report: {e}")
+                    else:
+                        st.warning("⚠️ Please complete indexing first to generate reports.")
+
+    with col2:
+        # Document Upload & Analysis
+        with st.expander("📤 Upload & Analyze Document"):
+            st.caption("Upload comparison sheets, STTM, or mapping tables")
+
+            uploaded_file = st.file_uploader(
+                "Upload document",
+                type=['xlsx', 'xls', 'json', 'csv', 'txt', 'md'],
+                key="doc_upload"
+            )
+
+            if uploaded_file:
+                try:
+                    # Save temporarily
+                    temp_dir = Path("./temp_uploads")
+                    temp_dir.mkdir(exist_ok=True)
+                    temp_path = temp_dir / uploaded_file.name
+
+                    with open(temp_path, 'wb') as f:
+                        f.write(uploaded_file.getbuffer())
+
+                    # Analyze
+                    with st.spinner("Analyzing document..."):
+                        analyzer = DocumentAnalyzer()
+                        result = analyzer.analyze_document(str(temp_path))
+
+                    if result['success']:
+                        st.success(f"✅ Analyzed: {result['file_type']}")
+                        st.info(result['summary'])
+
+                        # Show details
+                        if result['file_type'] == 'excel' and 'sheets' in result:
+                            st.markdown("**Sheets:**")
+                            for sheet_name, sheet_data in result['sheets'].items():
+                                st.caption(f"  • {sheet_name}: {sheet_data['rows']} rows, {sheet_data['columns']} columns")
+
+                        # Allow querying the document
+                        doc_query = st.text_input("Ask about this document:", key="doc_query")
+                        if doc_query and st.button("Ask", key="ask_doc_btn"):
+                            st.info("💡 Document Q&A coming soon! Currently showing document structure.")
+                    else:
+                        st.error(f"❌ {result['error']}")
+
+                except Exception as e:
+                    st.error(f"Error analyzing document: {e}")
+
+    st.divider()
+
     # Chat input
     if prompt := st.chat_input("Ask about your codebase..."):
         # Add user message
@@ -504,6 +651,57 @@ def render_chat_interface():
 
 def render_streaming_response(query: str):
     """Render response with streaming agent updates"""
+
+    # Check for workflow-related questions first (NEW)
+    workflow_keywords = [
+        "replaced", "compare", "comparison", "mapping", "unmapped", "workflow",
+        "pipeline", "migration", "consolidation", "n:1", "1:n", "n-1", "1-n",
+        "split", "merged", "combined", "gap", "missing"
+    ]
+
+    is_workflow_query = any(kw in query.lower() for kw in workflow_keywords)
+
+    # Use workflow intelligence if available and relevant (NEW)
+    if is_workflow_query and 'workflow_intelligence' in st.session_state:
+        try:
+            intelligence = st.session_state['workflow_intelligence']
+
+            # Show thinking
+            with st.status("🧠 Analyzing workflow question...", expanded=True) as status:
+                st.write("Checking workflow mappings...")
+
+                # Get answer
+                result = intelligence.answer_workflow_question(query)
+
+                st.write("✅ Answer ready!")
+                status.update(label="✅ Complete", state="complete")
+
+            # Display answer
+            st.markdown("---")
+            st.markdown("### 💡 Answer:")
+            st.markdown(result['answer'])
+
+            # Add to history
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": result['answer'],
+                "metadata": {
+                    "thinking": ["Used workflow intelligence system"],
+                    "data": result,
+                    "timestamp": datetime.now().isoformat()
+                }
+            })
+
+            st.session_state.query_history.append({
+                "query": query,
+                "timestamp": datetime.now().isoformat()
+            })
+
+            return  # Exit early, workflow intelligence handled it
+
+        except Exception as e:
+            logger.warning(f"Workflow intelligence failed, falling back to orchestrator: {e}")
+            st.warning("⚠️ Workflow intelligence encountered an issue, using standard chat...")
 
     # Check if orchestrator is available
     if not st.session_state.chat_orchestrator:
@@ -1999,6 +2197,25 @@ def reindex_abinitio_from_directory(directory_path: str):
         # Refresh stats
         st.session_state.stats = st.session_state.indexer.get_stats()
         st.session_state.indexed_files['abinitio'].append(f"Directory: {directory_path} (DEEP)")
+
+        # Initialize workflow intelligence after successful indexing (NEW)
+        if 'workflow_intelligence' not in st.session_state:
+            try:
+                with st.spinner("🧠 Loading workflow intelligence..."):
+                    intelligence = STAGWorkflowIntelligence()
+
+                    # Load workflow intelligence
+                    intelligence.load_workflow_intelligence(
+                        hadoop_repo_path="./hadoop_repos/hadoop_repos",
+                        databricks_analysis_file="databricks_pipeline_analysis.json",
+                        abinitio_mappings_file="abinitio_graph_mappings.json"
+                    )
+
+                    st.session_state['workflow_intelligence'] = intelligence
+                    st.success("✅ Workflow intelligence loaded! Chat can now answer workflow mapping questions.")
+            except Exception as e:
+                logger.warning(f"Could not load workflow intelligence: {e}")
+                st.warning("⚠️ Workflow intelligence not loaded - some chat features may be limited")
 
     except Exception as e:
         st.error(f"Error during deep indexing: {e}")
