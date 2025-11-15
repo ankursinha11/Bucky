@@ -28,6 +28,9 @@ from services.lineage.lineage_agents import (
 )
 from services.logic_comparator import LogicComparator
 from services.codebase_copilot import CodebaseCopilot
+from services.document_generator import DocumentGenerator
+from services.document_analyzer import DocumentAnalyzer
+from services.stag_workflow_integration import STAGWorkflowIntelligence
 
 
 class UpdateType(Enum):
@@ -96,7 +99,12 @@ class ChatOrchestrator:
         self.similarity_agent = SimilarityAgent(indexer=indexer, logic_comparator=self.logic_comparator)
         self.lineage_agent = LineageAgent()  # Takes no parameters
 
-        logger.info("ChatOrchestrator initialized with 5 specialized agents + LogicComparator + Codebase Copilot")
+        # Initialize document generation and workflow mapping tools
+        self.document_generator = DocumentGenerator()
+        self.document_analyzer = DocumentAnalyzer()
+        self.workflow_intelligence = None  # Will be set from session state
+
+        logger.info("ChatOrchestrator initialized with 5 specialized agents + LogicComparator + Codebase Copilot + Document Tools")
 
     def _read_actual_file_content(self, result: Dict[str, Any]) -> Optional[str]:
         """
@@ -193,7 +201,13 @@ class ChatOrchestrator:
             )
 
             # Phase 3: Execute tasks based on intent
-            if classified.intent == QueryIntent.SIMPLE_RAG:
+            if classified.intent == QueryIntent.DOCUMENT_GENERATION:
+                yield from self._handle_document_generation(query, classified, context)
+
+            elif classified.intent == QueryIntent.WORKFLOW_MAPPING:
+                yield from self._handle_workflow_mapping(query, classified, context)
+
+            elif classified.intent == QueryIntent.SIMPLE_RAG:
                 yield from self._handle_simple_rag(query, classified, context)
 
             elif classified.intent == QueryIntent.COMPARISON:
@@ -1066,6 +1080,290 @@ Found **{len(sttm_mappings)} field mappings**
 
         # Similar to simple RAG but with code-specific formatting
         yield from self._handle_simple_rag(query, classified, context)
+
+    def _handle_document_generation(
+        self,
+        query: str,
+        classified,
+        context: Optional[Dict]
+    ) -> Generator[StreamUpdate, None, None]:
+        """Handle document generation requests (STTM, comparison sheets, mapping reports)"""
+
+        entities = classified.entities
+        systems = classified.systems
+
+        # Task 1: Find the workflow/pipeline in vector database
+        yield StreamUpdate(
+            type=UpdateType.TASK_START,
+            content=f"Task 1/5: Finding workflow/pipeline..."
+        )
+
+        search_query = ' '.join(entities[:3]) if entities else query
+        system_name = systems[0] if systems else "databricks"
+
+        # Map system to collection
+        system_to_collection = {
+            "abinitio": "abinitio_collection",
+            "hadoop": "hadoop_collection",
+            "databricks": "databricks_collection"
+        }
+        collection = system_to_collection.get(system_name.lower(), "databricks_collection")
+
+        logger.info(f"Searching for {search_query} in {collection}")
+
+        try:
+            search_results = self.indexer.search_multi_collection(
+                query=search_query,
+                collections=[collection],
+                top_k=5
+            )
+
+            all_results = []
+            for _, docs in search_results.items():
+                all_results.extend(docs)
+
+            if not all_results:
+                yield StreamUpdate(
+                    type=UpdateType.ERROR,
+                    content=f"Could not find workflow '{search_query}' in {system_name}"
+                )
+                return
+
+            yield StreamUpdate(
+                type=UpdateType.TASK_COMPLETE,
+                content=f"Found {len(all_results)} related files"
+            )
+
+            # Task 2: Read actual file content
+            yield StreamUpdate(
+                type=UpdateType.TASK_START,
+                content=f"Task 2/5: Reading actual script files..."
+            )
+
+            first_result = all_results[0]
+            actual_content = self._read_actual_file_content(first_result)
+
+            if not actual_content and isinstance(first_result, dict):
+                actual_content = first_result.get('content', '')
+
+            metadata = first_result.get('metadata', {}) if isinstance(first_result, dict) else {}
+            file_path = metadata.get('absolute_file_path', metadata.get('file_path', 'Unknown'))
+            file_name = metadata.get('file_name', Path(file_path).name if file_path != 'Unknown' else 'Unknown')
+
+            yield StreamUpdate(
+                type=UpdateType.TASK_COMPLETE,
+                content=f"Read file: {file_name}"
+            )
+
+            # Task 3: Extract STTM mappings using AI
+            yield StreamUpdate(
+                type=UpdateType.TASK_START,
+                content=f"Task 3/5: Generating STTM mappings using AI..."
+            )
+
+            sttm_mappings = []
+            if self.ai_analyzer and self.ai_analyzer.enabled and actual_content:
+                # Use AI to extract transformations and generate STTM
+                try:
+                    parsed_data = {
+                        'entity_name': file_name,
+                        'context': actual_content,
+                        'metadata': metadata
+                    }
+
+                    sttm_mappings = self.mapping_agent.create_mappings(
+                        parsed_entity=parsed_data,
+                        partner=system_name
+                    )
+
+                    yield StreamUpdate(
+                        type=UpdateType.TASK_PROGRESS,
+                        content=f"Generated {len(sttm_mappings)} STTM mappings"
+                    )
+                except Exception as e:
+                    logger.error(f"Error generating STTM: {e}")
+                    yield StreamUpdate(
+                        type=UpdateType.TASK_PROGRESS,
+                        content=f"Could not generate STTM mappings: {str(e)}"
+                    )
+
+            yield StreamUpdate(
+                type=UpdateType.TASK_COMPLETE,
+                content=f"Extracted {len(sttm_mappings)} STTM mappings"
+            )
+
+            # Task 4: Generate document
+            yield StreamUpdate(
+                type=UpdateType.TASK_START,
+                content=f"Task 4/5: Generating document..."
+            )
+
+            # Determine document type from query
+            doc_type = "excel"
+            if "json" in query.lower():
+                doc_type = "json"
+            elif "markdown" in query.lower() or "md" in query.lower():
+                doc_type = "markdown"
+
+            # Create workflow signature for document generation
+            workflow_signature = {
+                'name': file_name,
+                'system': system_name,
+                'file_path': file_path,
+                'sources': [m.source_field_names for m in sttm_mappings if hasattr(m, 'source_field_names')][:5],
+                'targets': [m.target_field_name for m in sttm_mappings if hasattr(m, 'target_field_name')][:5],
+                'transformations': [m.transformation_logic for m in sttm_mappings if hasattr(m, 'transformation_logic')][:5]
+            }
+
+            # Generate STTM document
+            try:
+                output_file = self.document_generator._generate_sttm_document(
+                    workflow_name=file_name,
+                    sttm_mappings=[m.__dict__ if hasattr(m, '__dict__') else m for m in sttm_mappings],
+                    output_format=doc_type
+                )
+
+                yield StreamUpdate(
+                    type=UpdateType.TASK_COMPLETE,
+                    content=f"Document generated: {output_file}"
+                )
+            except Exception as e:
+                logger.error(f"Error generating document: {e}")
+                output_file = None
+                yield StreamUpdate(
+                    type=UpdateType.TASK_PROGRESS,
+                    content=f"Could not generate document: {str(e)}"
+                )
+
+            # Task 5: Format response
+            yield StreamUpdate(
+                type=UpdateType.TASK_START,
+                content=f"Task 5/5: Formatting response..."
+            )
+
+            final_answer = f"""## 📄 Document Generated for {file_name}
+
+**System:** {system_name.upper()}
+**File Path:** `{file_path}`
+
+### 📊 STTM Mappings Generated
+
+Found **{len(sttm_mappings)} column-level mappings**
+
+"""
+
+            # Show sample mappings
+            for i, mapping in enumerate(sttm_mappings[:10]):
+                if hasattr(mapping, 'target_field_name'):
+                    final_answer += f"\n{i+1}. **{mapping.target_field_name}** ({mapping.target_field_data_type if hasattr(mapping, 'target_field_data_type') else 'Unknown'})\n"
+                    if hasattr(mapping, 'source_field_names'):
+                        final_answer += f"   - Sources: {', '.join(mapping.source_field_names)}\n"
+                    if hasattr(mapping, 'transformation_logic'):
+                        final_answer += f"   - Logic: {mapping.transformation_logic[:100]}...\n"
+
+            if len(sttm_mappings) > 10:
+                final_answer += f"\n... and {len(sttm_mappings) - 10} more mappings\n"
+
+            if output_file:
+                final_answer += f"\n### 📥 Download\n\n**Document saved to:** `{output_file}`\n\n"
+                final_answer += f"You can download this file from the outputs/generated_documents directory.\n"
+            else:
+                final_answer += f"\n### ⚠️ Note\n\nDocument generation encountered issues. See details above.\n"
+
+            yield StreamUpdate(
+                type=UpdateType.FINAL_ANSWER,
+                content=final_answer,
+                data={
+                    "workflow": workflow_signature,
+                    "sttm_mappings": [m.__dict__ if hasattr(m, '__dict__') else m for m in sttm_mappings],
+                    "output_file": output_file
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"Error in document generation: {e}")
+            yield StreamUpdate(
+                type=UpdateType.ERROR,
+                content=f"Error generating document: {str(e)}"
+            )
+
+    def _handle_workflow_mapping(
+        self,
+        query: str,
+        classified,
+        context: Optional[Dict]
+    ) -> Generator[StreamUpdate, None, None]:
+        """Handle workflow mapping queries (replacements, N:1, gaps, etc.)"""
+
+        # Check if workflow intelligence is available
+        if not self.workflow_intelligence:
+            yield StreamUpdate(
+                type=UpdateType.ERROR,
+                content="Workflow intelligence not loaded. Please complete system indexing first."
+            )
+            return
+
+        # Task 1: Query workflow intelligence
+        yield StreamUpdate(
+            type=UpdateType.TASK_START,
+            content=f"Task 1/3: Analyzing workflow question..."
+        )
+
+        try:
+            result = self.workflow_intelligence.answer_workflow_question(query)
+
+            yield StreamUpdate(
+                type=UpdateType.TASK_COMPLETE,
+                content="Workflow analysis complete"
+            )
+
+            # Task 2: Format answer
+            yield StreamUpdate(
+                type=UpdateType.TASK_START,
+                content=f"Task 2/3: Formatting detailed answer..."
+            )
+
+            answer = result.get('answer', 'No answer generated')
+
+            yield StreamUpdate(
+                type=UpdateType.TASK_COMPLETE,
+                content="Answer formatted"
+            )
+
+            # Task 3: Add actionable recommendations
+            yield StreamUpdate(
+                type=UpdateType.TASK_START,
+                content=f"Task 3/3: Adding recommendations..."
+            )
+
+            # Enhance answer with recommendations if needed
+            if 'unmapped' in query.lower():
+                answer += "\n\n### 💡 Recommendations:\n"
+                answer += "1. Review unmapped workflows to determine if they are:\n"
+                answer += "   - Deprecated functionality (can be ignored)\n"
+                answer += "   - Migration gaps (need to be migrated)\n"
+                answer += "   - Renamed workflows (need manual mapping)\n"
+                answer += "2. Prioritize critical unmapped workflows first\n"
+                answer += "3. Verify N:1 consolidations maintain all business logic\n"
+
+            yield StreamUpdate(
+                type=UpdateType.TASK_COMPLETE,
+                content="Recommendations added"
+            )
+
+            # Final answer
+            yield StreamUpdate(
+                type=UpdateType.FINAL_ANSWER,
+                content=answer,
+                data=result
+            )
+
+        except Exception as e:
+            logger.error(f"Error in workflow mapping: {e}")
+            yield StreamUpdate(
+                type=UpdateType.ERROR,
+                content=f"Error querying workflow mappings: {str(e)}"
+            )
 
     def _format_detailed_comparison(
         self,
